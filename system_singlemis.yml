@@ -1,0 +1,191 @@
+device: cuda
+list_d_sensor:
+- 100.0
+- 62.0
+- 104.566
+- 43.066
+list_film_size:
+- - 680
+  - 560
+- - 680
+  - 560
+- - 680
+  - 560
+- - 680
+  - 560
+list_origin:
+- null
+- - 0.0
+  - 0.0
+  - 100.0
+- - -4.041199207305908
+  - 0.0
+  - 111.29905700683594
+- - -42.78621965455481
+  - 0.0
+  - 159.03774951119343
+list_pixel_size:
+- 0.01
+- 0.01
+- 0.01
+- 0.01
+list_r_last:
+- 12.0
+- 12.0
+- 12.0
+- 12.0
+list_rotation_order:
+- xyz
+- yxz
+- xyz
+- xyz
+list_shift:
+- - 0.0
+  - 0.0
+  - 0.0
+- - 0.0
+  - 0.0
+  - 0.0
+- - -0.017
+  - 0.0
+  - 0.0
+- - 0.017068080202336616
+  - 0.0
+  - 0.208540988696794
+list_theta_x:
+- 0.0
+- 5.0
+- 0.0
+- 0.0
+list_theta_y:
+- 0.0
+- -19.68
+- -39.063
+- -39.063
+list_theta_z:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+save_dir: ./render_pattern_demo/
+systems_materials:
+- - air
+  - air
+- - air
+  - N-BK7
+  - air
+- - air
+  - N-BAF10
+  - N-SF10
+  - air
+- - air
+  - air
+  - air
+systems_surfaces:
+- - R: 7.318
+    d: 50.0
+    params:
+      f: 50.0
+      is_square: false
+    type: ThinLens
+- - R: 10.392304845413264
+    d: 0.0
+    is_square: true
+    params:
+      J: 1
+      ai:
+      - 0
+      - 0
+      - 0.5773502691896256
+      b: null
+      is_square: false
+    type: XYPolynomial
+  - R: 10.392304845413264
+    d: 11.999999999999996
+    is_square: true
+    params:
+      J: 1
+      ai:
+      - 0
+      - 0
+      - -0.5773502691896256
+      b: null
+      is_square: false
+    type: XYPolynomial
+- - R: 12.7
+    d: 50.0
+    params:
+      ai: null
+      c: 0.029994001199760045
+      is_square: false
+      k: 0.0
+    type: Aspheric
+  - R: 12.7
+    d: 9.0
+    params:
+      ai: null
+      c: -0.04488330341113106
+      is_square: false
+      k: 0.0
+    type: Aspheric
+  - R: 12.7
+    d: 2.5
+    params:
+      ai: null
+      c: -0.003435599683924829
+      is_square: false
+      k: 0.0
+    type: Aspheric
+- - R: 9.492746942615396
+    d: 10.0
+    is_square: true
+    params:
+      J: 1
+      ai:
+      - 0
+      - 0
+      - 0
+      b: null
+      is_square: false
+    type: XYPolynomial
+  - R: 9.492746942615396
+    d: 0.0
+    is_square: true
+    params:
+      J: 1
+      ai:
+      - 0
+      - 0
+      - 0
+      b: null
+      is_square: false
+    type: XYPolynomial
+wavelengths:
+- 450.0
+- 457.40740966796875
+- 464.8148193359375
+- 472.22222900390625
+- 479.629638671875
+- 487.03704833984375
+- 494.4444580078125
+- 501.8518371582031
+- 509.2592468261719
+- 516.6666870117188
+- 524.0740966796875
+- 531.4815063476562
+- 538.888916015625
+- 546.2962646484375
+- 553.7037353515625
+- 561.111083984375
+- 568.5184936523438
+- 575.9259033203125
+- 583.3333129882812
+- 590.74072265625
+- 598.1481323242188
+- 605.5555419921875
+- 612.9629516601562
+- 620.370361328125
+- 627.7777709960938
+- 635.1851806640625
+- 642.5925903320312
+- 650.0
