@@ -32,15 +32,15 @@ conda activate diffcassisim
     	    |--mst_datasets
             	|--cave_1024_28_test
                     |--scene2.mat
-                                            ：  
+                    ：  
                     |--scene191.mat
             	|--cave_1024_28_train
                     |--scene1.mat
-                	        ：  
+                    ：  
                     |--scene205.mat
                 |--TSA_simu_data
                     |--scene01.mat
-                    	        ：
+                    ：
                     |--scene10.mat                    
 ```
 
