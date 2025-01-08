@@ -5,9 +5,9 @@ Code for paper _The Marginal Importance of Distortions and Alignment in CASSI sy
 
 This code contains all the code and information needed to reproduce the results presented in our paper _The Marginal Importance of Distortions and Alignment in CASSI systems_:
 - Our [fork](https://github.com/lpaillet-laas/DiffOptics) of dO, a differentiable ray-tracing framework specifically adapted for coded hypserspectral acquisition rendering
-- The four configurations used in the paper, described as .yml files
+- The four CASSI configurations used in the paper, described as .yml files
 - The reconstruction networks (DGSMP, MST, DAUHST, PADUT, RDLUF) adapted to our image sizes and systems' dispersion
-- Training and testing scripts to smoothly run the networks
+- Training and testing scripts as well as datasets to smoothly run the networks and reconstruct coded images
 
 ## Installation
 
