@@ -1,5 +1,13 @@
 # DiffCassiSim: Differentiable Ray-Traced CASSI Simulator and Distortions Analysis 
-Code for paper The Marginal Importance of Distortions and Alignment in CASSI systems
+Code for paper _The Marginal Importance of Distortions and Alignment in CASSI systems_.
+
+## Description
+
+This code contains all the code and information needed to reproduce the results presented in our paper _The Marginal Importance of Distortions and Alignment in CASSI systems_:
+- Our [fork](https://github.com/lpaillet-laas/DiffOptics) of dO, a differentiable ray-tracing framework specifically adapted for coded hypserspectral acquisition rendering
+- The four CASSI configurations used in the paper, described as .yml files
+- The reconstruction networks (DGSMP, MST, DAUHST, PADUT, RDLUF) adapted to our image sizes and systems' dispersion
+- Training and testing scripts as well as datasets to smoothly run the networks and reconstruct coded images
 
 ## Installation
 
@@ -32,15 +40,15 @@ conda activate diffcassisim
     	    |--mst_datasets
             	|--cave_1024_28_test
                     |--scene2.mat
-                                            ：  
+                    ：  
                     |--scene191.mat
             	|--cave_1024_28_train
                     |--scene1.mat
-                	        ：  
+                    ：  
                     |--scene205.mat
                 |--TSA_simu_data
                     |--scene01.mat
-                    	        ：
+                    ：
                     |--scene10.mat                    
 ```
 
