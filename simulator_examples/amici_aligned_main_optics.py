@@ -10,7 +10,6 @@ sys.path.append("../")
 import diffoptics as do
 
 import time
-from utils import *
 import yaml
 
 import cProfile
@@ -787,7 +786,7 @@ def shift(inputs, dispersion_pixels, n_lambda = 28):
         output[:, i, abs_shift[i, 0]: H + abs_shift[i, 0], abs_shift[i, 1]: W + abs_shift[i, 1]] = inputs[:, i, :, :]
     return output
 
-oversample = 4
+""" oversample = 4
 
 
 texture = [1 for i in range(4)] + [5] + [4] + [3 for i in range(7)] + [1 for i in range(5)] + [4 for i in range(10)]
@@ -847,15 +846,6 @@ plt.imshow(psf_line[2, 0, :, :])
 
 
 #texture = texture[256-10:256+10, 256, :]
-""" texture = texture[:, 256, :]
-for pos in range(psf_line.shape[0]):
-    sub_texture = texture[128*(pos+1)-10:128*(pos+1)+10, :]
-    for i in range(sub_texture.shape[0]):
-        for j in range(sub_texture.shape[1]):
-            accu = sub_texture[i, j]*torch.sum(psf_line[pos, j, :, :], axis=0)
-            dispersed_texture_pixel[pos, :] += accu/oversample
-    dispersed_texture_pixel[pos, :] /= sub_texture.shape[0] """
-
 texture = texture[:, 256, :]
 dispersed_texture_pixel = torch.zeros(psf_line.shape[0], list_film_size[0][0])
 temp = torch.zeros(psf_line.shape[2], psf_line.shape[3])
@@ -913,3 +903,4 @@ plt.title("(Am) system")
 plt.legend(["Raw spectrum + Dispersion + PSF", "Acquisition"])
 plt.savefig(lens_group.save_dir + "rendering_comparison.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
 plt.show()
+ """

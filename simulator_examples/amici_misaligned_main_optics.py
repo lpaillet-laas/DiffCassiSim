@@ -10,7 +10,6 @@ sys.path.append("../")
 import diffoptics as do
 
 import time
-from utils import *
 import yaml
 
 import cProfile
@@ -772,7 +771,7 @@ def shift(inputs, dispersion_pixels, n_lambda = 28):
         output[:, i, abs_shift[i, 0]: H + abs_shift[i, 0], abs_shift[i, 1]: W + abs_shift[i, 1]] = inputs[:, i, :, :]
     return output
 
-oversample = 10
+""" oversample = 10
 
 image_20_4 = torch.load("test_n20_ov4.pt").flip(0,1)
 image_180 = torch.load("test_n180_ov4.pt").flip(0,1)
@@ -786,19 +785,6 @@ texture = [1 for i in range(4)] + [5] + [4] + [3 for i in range(7)] + [1 for i i
 texture = 1000*torch.tensor(texture).repeat_interleave(oversample).float()
 # plt.figure()
 # plt.imshow(np.sum(texture, axis=-1))
-""" image = torch.load("test.pt").flip(0,1)
-plt.figure()
-plt.title("Panchro acquisition")
-plt.imshow(torch.sum(image, dim=-1))
-
-plt.figure()
-plt.plot(torch.mean(torch.sum(image, dim=-1)[110:146, 81:172], dim=0))
-plt.xlabel("Pixel")
-plt.title("Spread spectrum")
-plt.figure()
-plt.plot(lens_group.wavelengths, texture)
-plt.xlabel("Wavelength")
-plt.title("True spectrum") """
 psf_line = torch.load('psf_line.pt')
 convoluted_spectrum = torch.zeros(28*oversample+5+5)
 for i in range(28*oversample):
@@ -830,15 +816,4 @@ plt.plot(torch.sum(image_180, dim=-1)[128, 81:172])
 plt.xlabel("Pixel")
 plt.title("180 rays, oversampling 4")
 plt.show()
-
-
-
-
-
-""" texture = torch.empty(256, 256, 3)
-res = extract_acq_from_cube(image, lens_group.pixel_dispersed, (torch.tensor(list_film_size[-1])//2).int().flip(0), (torch.tensor(texture.shape[:2])).int().flip(0))
-plt.imshow(res)
-plt.show()
-res = res.unsqueeze(0)
-back_res = shift_back(res, lens_group.pixel_dispersed, n_lambda = 28)
-print(back_res.shape) """
+ """

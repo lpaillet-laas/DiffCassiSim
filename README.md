@@ -48,7 +48,7 @@ conda activate diffcassisim
 
 The main file containing all the methods and ways to modelize and use a CASSI simulated system are found under the `CASSI_class.py` file.
 
-You can find several examples on how to use it within the `simulator_examples` folder, as well as code to regenerate the figures from the article.
+You can find several examples on how to use it within the `simulator_examples` folder, as well as code to regenerate the figures from the article in `simulator_examples/reproduce_figures.py`.
 
 ## Train the networks from scratch
 

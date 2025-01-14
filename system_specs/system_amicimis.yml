@@ -52,7 +52,7 @@ list_theta_z:
 - 0.0
 - 0.0
 - 0.0
-save_dir: ../system_comparison_with_zemax/amici_misaligned/images/
+save_dir: null
 systems_materials:
 - - air
   - air

@@ -67,7 +67,7 @@ list_theta_z:
 - 0.0
 - 0.0
 - 0.0
-save_dir: ./render_pattern_demo/
+save_dir: null
 systems_materials:
 - - air
   - air

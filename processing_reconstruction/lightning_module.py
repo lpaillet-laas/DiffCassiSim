@@ -18,7 +18,7 @@ import time
 from utils import *
 import sys
 sys.path.append("../")
-from main_class import HSSystem
+from CASSI_class import HSSystem
 
 import matplotlib.cm as cm
 from matplotlib.colors import LinearSegmentedColormap

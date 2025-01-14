@@ -10,7 +10,6 @@ sys.path.append("../")
 import diffoptics as do
 
 import time
-from utils import *
 import yaml
 
 import cProfile
@@ -147,9 +146,9 @@ if __name__ == '__main__':
     # - 'optimize_psf_zemax': Manually optimize the distance of the sensor and the angle of the system to match Zemax system.
     # - 'compare_psf_zemax': Compare the PSF of the system with Zemax.
 
-    usecase = 'spot'
+    usecase = 'fzf'
     
-    oversample = 1
+    oversample = 4
     x_center_second_surface_prism = d_prism_length*np.sin(angle_prism_y*np.pi/180).item()
     #print(x_center_second_surface_prism)
 
@@ -815,16 +814,16 @@ def shift(inputs, dispersion_pixels, n_lambda = 28):
         output[:, i, abs_shift[i, 0]: H + abs_shift[i, 0], abs_shift[i, 1]: W + abs_shift[i, 1]] = inputs[:, i, :, :]
     return output
 
-oversample = 10
+""" oversample = 10
 
 
 texture = [1 for i in range(4)] + [5] + [4] + [3 for i in range(7)] + [1 for i in range(5)] + [4 for i in range(10)]
 texture = 1000*torch.tensor(texture).repeat_interleave(oversample).float()
 
-texture = scipy.io.loadmat("/home/lpaillet/Documents/Codes/simca/datasets_reconstruction/mst_datasets/cave_1024_28_train/scene109.mat")['img_expand'][:512,:512].astype('float32')
+texture = scipy.io.loadmat("../processing_reconstruction/datasets_reconstruction/mst_datasets/cave_1024_28_train/scene109.mat")['img_expand'][:512,:512].astype('float32')
 #texture = scipy.io.loadmat("/home/lpaillet/Documents/Codes/simca/datasets_reconstruction/mst_datasets/cave_1024_28_train/scene105.mat")['img_expand'][:512,:512].astype('float32')
+texture_acq = torch.nn.functional.interpolate(torch.from_numpy(texture).unsqueeze(0), scale_factor=(1, 4), mode='bilinear', align_corners=True).squeeze()
 texture = torch.nn.functional.interpolate(torch.from_numpy(texture).unsqueeze(0), scale_factor=(1, oversample), mode='bilinear', align_corners=True).squeeze()
-airy = torch.load("airy_single.pt", map_location='cpu')
 #texture = torch.nn.functional.conv2d(texture.unsqueeze(0).permute(0, 3, 1, 2), airy.float(), padding = airy.shape[-1]//2, groups=system_wavelengths.shape[0]).squeeze()
 #texture = texture.permute(1, 2, 0)
 
@@ -833,7 +832,20 @@ airy = torch.load("airy_single.pt", map_location='cpu')
 
 
 #image = torch.load("test_single_n100_ov10.pt").flip(0,1)
-image = torch.load("render_saved_pos_single.pt").flip(0)
+#image = torch.load("/home/lpaillet/Documents/Codes/DiffOptics/examples/render_saved_pos_single.pt").flip(0)
+
+
+#image = torch.load("image_rendered.pt").flip(0)
+
+mask = np.zeros((512, 512), dtype=np.float32)
+mask[:, 256] = 1
+
+texture_acq = np.multiply(texture_acq, mask[:,:,np.newaxis]).float().to(device)
+
+z0 = torch.tensor([lens_group.system[-1].d_sensor*torch.cos(lens_group.system[-1].theta_y*np.pi/180) + lens_group.system[-1].origin[-1] + lens_group.system[-1].shift[-1]]).item()
+image = lens_group.render(wavelengths=torch.linspace(450, 650, 28*4), nb_rays=20, z0=z0,
+                    texture=texture_acq, numerical_aperture=0.05, plot=False).flip(0)
+
 plt.figure()
 plt.title("Panchro texture")
 plt.imshow(torch.sum(texture, dim=-1))
@@ -849,14 +861,16 @@ plt.gca().xaxis.set_major_locator(plt.NullLocator())
 plt.gca().yaxis.set_major_locator(plt.NullLocator())
 #plt.imshow(image.sum(-1), cmap='gray')
 plt.imshow(image.sum(-1), cmap=custom_gray_cmap)
-plt.savefig(lens_group.save_dir + "acquisition_rendering.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
 
-plt.figure()
-#plt.plot(lens_group.wavelengths, texture)
-plt.plot(lens_group.wavelengths, texture[256, 256, :])
-plt.xlabel("Wavelength")
-plt.title("True spectrum")
-psf_line = torch.load('psf_line_single.pt')
+#plt.savefig(lens_group.save_dir + "acquisition_rendering.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+
+# plt.figure()
+# plt.plot(lens_group.wavelengths, texture)
+# plt.plot(lens_group.wavelengths, texture[256, 256, :])
+# plt.xlabel("Wavelength")
+# plt.title("True spectrum")
+
+psf_line = torch.load('/home/lpaillet/Documents/Codes/DiffOptics/examples/psf_line_single.pt')
 
 print("Pixels: ", lens_group.pixel_dispersed)
 #dispersed_texture = texture[1:]*1/lens_group.pos_dispersed[:,0].diff()
@@ -870,8 +884,34 @@ plt.title("Dispersion applied to spectrum")
 #psf_line = psf_line.rot90(1, [2,3]).flip(2)
 #psf_line = psf_line.flip(3)
 
-airy = airy[56, 0, :, :].unsqueeze(0).unsqueeze(0).repeat(280, 1, 1, 1)
-psf_line = torch.nn.functional.conv2d(psf_line, airy.float(), padding = airy.shape[-1]//2, groups=system_wavelengths.shape[0]).squeeze()
+def compute_airy_disk(wavelengths, pixel_size, na=0.05, grid_size = 7, magnification = 1):
+    airy_disk_kernel = torch.zeros(wavelengths.shape[0], 1, grid_size, grid_size, device=wavelengths.device)
+    for i in range(wavelengths.shape[0]):
+        airy_disk_kernel[i, 0, :, :] = airy_disk(wavelengths[i]*1e-6, na, pixel_size, grid_size, magnification = 2)
+    return airy_disk_kernel
+
+def airy_disk(wavelength, na, pixel_size, grid_size, magnification = 1):
+    # Create a grid of coordinates
+    x = torch.linspace(-grid_size // 2 +1, grid_size// 2 , grid_size) * pixel_size
+    y = torch.linspace(-grid_size // 2 +1, grid_size// 2 , grid_size) * pixel_size
+    X, Y = torch.meshgrid(x, y, indexing='ij')
+    
+    # Calculate the radial distance from the center
+    R = torch.sqrt(X**2 + Y**2)
+
+    # Compute the Airy disk pattern
+    k = 1/magnification * torch.pi* 2*R*torch.tan(torch.as_tensor(na))/ wavelength
+    airy_pattern = (2*torch.special.bessel_j1(k) / k).pow(2)
+    airy_pattern[R == 0] = 1  # Handle the singularity at the center
+
+    # Normalize the pattern
+    airy_pattern /= airy_pattern.sum()
+
+    return airy_pattern
+
+airy = compute_airy_disk(torch.linspace(450, 650, 280), lens_group.system[-1].pixel_size, na=0.05, grid_size = 7, magnification = 2)
+#airy = airy[56, 0, :, :].unsqueeze(0).unsqueeze(0).repeat(280, 1, 1, 1)
+psf_line = torch.nn.functional.conv2d(psf_line, airy.float(), padding = airy.shape[-1]//2, groups=280).squeeze()
 
 dispersed_texture_pixel = torch.zeros(psf_line.shape[0], list_film_size[0][0])
 #texture = texture[256, 256, :]
@@ -952,6 +992,7 @@ plt.legend(["Ground truth spectrum", "Acquisition"])
 ax.tick_params(axis='both', which='major', labelsize=90, width=5, length=20)
 ax.yaxis.set_label_position("right")
 ax.yaxis.tick_right()
-plt.savefig(lens_group.save_dir + "rendering_comparison.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
-plt.show()
 
+#plt.savefig(lens_group.save_dir + "rendering_comparison.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+plt.show()
+ """

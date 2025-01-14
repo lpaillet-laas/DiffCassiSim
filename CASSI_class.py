@@ -49,6 +49,10 @@ class HSSystem:
         """
         if config_file_path is not None:
             self.import_system(config_file_path)
+            if device != 'cuda':
+                self.device = device
+            if save_dir is not None:
+                self.save_dir = save_dir
         else:
             self.systems_surfaces = list_systems_surfaces
             self.systems_materials = list_systems_materials
@@ -396,7 +400,7 @@ class HSSystem:
         
         # reverse surfaces
         d_total = torch.tensor([lens.surfaces[-1].d])
-        print("D_total: ", d_total)
+        #print("D_total: ", d_total)
         for i in range(len(lens.surfaces)):
             #lens.surfaces[i].d = (d_total - lens.surfaces[i].d + start_distance).item()
             lens.surfaces[i].d = - lens.surfaces[i].d
@@ -412,17 +416,17 @@ class HSSystem:
         lens.aperture_radius = lens.surfaces[0].r
         #lens.aperture_distance = torch.tensor([lens.surfaces[0].d])
 
-        print("d_sensor", lens.d_sensor)
+        #print("d_sensor", lens.d_sensor)
         #lens.aperture_distance = (start_distance - lens.origin[2]) - lens.shift[2] + torch.tensor([lens.surfaces[0].d])
         lens.aperture_distance = lens.d_sensor + lens.surfaces[0].d# + lens.origin[2] + lens.shift[2]
         #print("Lens: ", lens)
-        print("aperture dist: ", lens.aperture_distance)
+        #print("aperture dist: ", lens.aperture_distance)
         lens.mts_prepared = True
         #lens.d_sensor = 0
 
         #lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance + d_total - lens.origin[2]]).float().to(device=self.device)
-        print("Sd: ", start_distance)
-        print("Total: ", d_total)
+        #print("Sd: ", start_distance)
+        #print("Total: ", d_total)
 
         ######lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance + d_total*np.cos(lens.theta_y*np.pi/180).item()]).float().to(device=self.device)
         lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance - lens.origin[2]]).float().to(device=self.device)
@@ -434,8 +438,8 @@ class HSSystem:
         R_, t_ = lens._compute_transformation().R, lens._compute_transformation().t
         lens.mts_Rt = do.Transformation(R_, t_) # transformation of the lensgroup
         lens.mts_Rt.to(self.device)
-        print(lens.rotation_order)
-        print("Pixel size: ", lens.pixel_size)
+        #print(lens.rotation_order)
+        #print("Pixel size: ", lens.pixel_size)
         lens.update()
         self.system[lens_id] = lens
 
@@ -457,7 +461,7 @@ class HSSystem:
         # ray_mid.o = ray_mid.o[valid, :]
         # ray_mid.d = ray_mid.d[valid, :]
         #print("Ray 1: ", ray_mid)
-        print("Nb valid 1: ", torch.sum(valid))
+        #print("Nb valid 1: ", torch.sum(valid))
         # Trace rays through each lens in the system
         
         ####for lens in self.system[::-1][1:-1]:
@@ -469,7 +473,7 @@ class HSSystem:
             #ray_mid = lens.mts_Rt.transform_ray(ray_mid)
             ray_mid = lens.to_world.transform_ray(ray_mid)
             #print(f"Ray mid: ", ray_mid)
-            print("Nb valid mid: ", torch.sum(valid_1))
+            #print("Nb valid mid: ", torch.sum(valid_1))
             valid = valid & valid_1
 
         # Trace rays to the first lens
@@ -477,7 +481,7 @@ class HSSystem:
         ray_mid = self.system[-1].to_object.transform_ray(ray_mid)
         ####valid_last, ray_last = self.system[0]._trace(ray_mid)
         valid_last, ray_last = self.system[-1]._trace(ray_mid)
-        print("Nb valid last: ", torch.sum(valid_last))
+        #print("Nb valid last: ", torch.sum(valid_last))
         valid_last = valid & valid_last
         #print("Ray last before transform: ", ray_last)
 
@@ -875,10 +879,10 @@ class HSSystem:
                 #self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = offsets[-1], R=lens_mts_R, t=lens_mts_t)  
                 max_z = lens.d_sensor*torch.cos(lens.theta_y*np.pi/180) + lens.origin[-1] + lens.shift[-1] # Last z coordinate in absolute coordinates
                 self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-1], R=lens_mts_R, t=lens_mts_t)    
-            print("Surface ", i)
-            print("Origin: ", lens.origin)
-            print("Shift: ", lens.shift)
-            print("D final: ", lens.surfaces[-1].d)
+            #print("Surface ", i)
+            #print("Origin: ", lens.origin)
+            #print("Shift: ", lens.shift)
+            #print("D final: ", lens.surfaces[-1].d)
         if plot:
             self.combined_plot_setup(with_sensor=False)
 
@@ -912,14 +916,14 @@ class HSSystem:
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        print("Texture nonzero: ", texture_torch.count_nonzero())
+        #print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
         ray_counts_per_pixel = nb_rays
         time_start = time.time()
         Is = []
 
-        shift_value = shift_value.int()
+        #shift_value = shift_value.int()
         for wavelength_id, wavelength in enumerate(wavelengths):
             screen.update_texture(texture_torch[..., wavelength_id])
 
@@ -932,15 +936,9 @@ class HSSystem:
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-            print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
-            ####I = I.reshape(*np.flip(np.asarray(self.system[0].film_size))).flip(1) # Flip
-            #I = I.reshape(*np.asarray(self.system[0].film_size)).flip(1)
+            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
+
             I = I.reshape(*np.flip(np.asarray(self.system[0].film_size)))
-            ##I = I.reshape(*np.flip(np.asarray(self.system[0].film_size)))
             Is.append(I.cpu())
         # show image
         I_rendered = torch.stack(Is, axis=-1)
@@ -1139,7 +1137,8 @@ class HSSystem:
         d[0,0,-1] = 1
         d = d.repeat(x.shape[0], x.shape[1], 1)
 
-        np.save(self.save_dir + "grid.npy", np.stack((x.cpu().detach().numpy().flatten(),y.cpu().detach().numpy().flatten()), axis=-1))
+        if self.save_dir is not None:
+            np.save(self.save_dir + "grid.npy", np.stack((x.cpu().detach().numpy().flatten(),y.cpu().detach().numpy().flatten()), axis=-1))
 
         o = torch.stack((x,y,torch.zeros_like(x, device=self.device)), axis=2)
         ray.o = o
@@ -1170,7 +1169,7 @@ class HSSystem:
         plt.rcParams['font.family'] = 'serif'
         for w_id, w in enumerate(wavelengths):
             ps = self.plot_spot_diagram(w, nb_pixels, size_pixel, show=False, nb_pts_x=3, nb_pts_y=3)
-            
+
             """ps = ps[sq-1::sq,:]
             new_ps = np.zeros((ps.shape[0]//sq, 2))
 
@@ -1222,7 +1221,8 @@ class HSSystem:
         ax.tick_params(axis='both', which='major', width=5/2.5, length=20/2.5)
         plt.grid(True)
         plt.legend([f'{wavelengths[0]} nm', f'{wavelengths[1]} nm', f'{wavelengths[2]} nm'])
-        plt.savefig(self.save_dir + "spotdiagram.svg", format="svg", bbox_inches='tight', pad_inches = 0)
+        if self.save_dir is not None:
+            plt.savefig(self.save_dir + "spotdiagram.svg", format="svg", bbox_inches='tight', pad_inches = 0)
         plt.show()
     
     def combined_plot_setup(self, with_sensor=False):
@@ -1351,7 +1351,8 @@ class HSSystem:
             plt.xlabel('x [mm]')
             plt.ylabel('y [mm]')
             plt.legend(['dO', 'Zemax'])
-            plt.savefig(self.save_dir + f'spot_diagram_{w.int().item()}nm.svg', format='svg')
+            if self.save_dir is not None:
+                plt.savefig(self.save_dir + f'spot_diagram_{w.int().item()}nm.svg', format='svg')
             field_test = y_field.reshape((int(np.sqrt(x_real.shape).item()), int(np.sqrt(x_real.shape).item()))).numpy()
 
             diff = np.linalg.norm(ps - prop_ref, axis=-1).reshape((int(np.sqrt(x_real.shape).item()), int(np.sqrt(x_real.shape).item())))
@@ -1383,14 +1384,15 @@ class HSSystem:
             vmax_zemax = 4.64173844285655
             plt.imshow(diff, extent=[x_field.min()*1000, x_field.max()*1000, y_field.min()*1000, y_field.max()*1000], vmin=vmin_zemax, vmax=vmax_zemax)
             cb = plt.colorbar(label=r'Distance [µm]')
-            #plt.title(f'Distortion map with respect to Zemax at {w.int().item()}nm')
+            plt.title(f'Distortion map with respect to Zemax at {w.int().item()}nm')
             ax.set_xlabel(r"x [µm]")
             ax.set_ylabel(r"y [µm]")
             ax.tick_params(axis='both', which='major', width=5/2.5, length=20/2.5)
             cb.ax.tick_params(axis='both', which='major', width=5/2.5, length=20/2.5)
             plt.xticks([-2000, -1000, 0, 1000, 2000])
             plt.yticks([-2000, -1000, 0, 1000, 2000])
-            plt.savefig(self.save_dir + f'distortion_map_wrt_zemax_{w.int().item()}nm.svg', format='svg', bbox_inches = 'tight', pad_inches = 0)
+            if self.save_dir is not None:
+                plt.savefig(self.save_dir + f'distortion_map_wrt_zemax_{w.int().item()}nm.svg', format='svg', bbox_inches = 'tight', pad_inches = 0)
 
             fig = plt.figure(figsize=(32/2.5, 18/2.5), dpi=60*2.5)
             ax = fig.add_subplot(111)
@@ -1398,14 +1400,15 @@ class HSSystem:
             
             plt.imshow(diff_field, extent=[x_field.min()*1000, x_field.max()*1000, y_field.min()*1000, y_field.max()*1000], vmin=list_diff_field.min(), vmax=list_diff_field.max())
             cb = plt.colorbar(label=r'Distance [µm]')
-            #plt.title(f'Distortion map relative to the grid at {w.int().item()}nm')
+            plt.title(f'Distortion map relative to the grid at {w.int().item()}nm')
             ax.set_xlabel(r"x [µm]")
             ax.set_ylabel(r"y [µm]")
             ax.tick_params(axis='both', which='major', width=5/2.5, length=20/2.5)
             cb.ax.tick_params(axis='both', which='major', width=5/2.5, length=20/2.5)
             plt.xticks([-2000, -1000, 0, 1000, 2000])
             plt.yticks([-2000, -1000, 0, 1000, 2000])
-            plt.savefig(self.save_dir + f'distortion_map_wrt_field_{w.int().item()}nm.svg', format='svg', bbox_inches = 'tight', pad_inches = 0)
+            if self.save_dir is not None:
+                plt.savefig(self.save_dir + f'distortion_map_wrt_field_{w.int().item()}nm.svg', format='svg', bbox_inches = 'tight', pad_inches = 0)
         print(f"Diff min: {list_diff.min()} diff max: {list_diff.max()}")
         plt.show()
         return mean_diff
@@ -1500,7 +1503,6 @@ class HSSystem:
             plot (bool, optional): Whether to plot the rendered image. Defaults to True.
         """
 
-        print(f"Texture shape: {texture.shape}")
         return self.propagate(wavelengths = wavelengths, nb_rays = nb_rays, z0 = z0,
                   texture = texture, offsets = offsets, numerical_aperture=numerical_aperture, plot = plot)
     
@@ -1690,8 +1692,6 @@ class HSSystem:
         plt.rcParams['text.usetex'] = True
         plt.rcParams['font.family'] = 'serif'
         matplotlib.rcParams['axes.linewidth'] = 1
-        #params0 = {'text.latex.preamble': r"\usepackage{upgreek} \usepackage{amsmath} \usepackage{siunitx} \sisetup{detect-family = true}"}
-        #plt.rcParams.update(params0)
         
         for k in range(len(params)):
             d = self.extract_hexapolar_dir(nb_centric_circles, params[k][0], max_angle)
@@ -1754,6 +1754,8 @@ class HSSystem:
             #if k <= 2 or k==5:
             #    y_center1 += 0.0025
 
+            fig[0].set_ylabel('dO', fontsize = 70/2)
+            fig[1].set_ylabel('Zemax', fontsize = 70/2)
             fig[0].set_ylim((y_center0-d_max*1.5, y_center0+d_max*1.5))
             fig[0].set_xlim((x_center0-d_max*1.5, x_center0+d_max*1.5))
             fig[1].set_ylim((y_center1-d_max*1.5, y_center1+d_max*1.5))
@@ -1791,8 +1793,6 @@ class HSSystem:
                 a2 = ax.annotate(r'1\,px', xy=((xdata[0]+xdata[1])/2, ydata[0]), xytext=(0, 30), textcoords='offset pixels', ha='center', va='center', size=60/2)
                 return (line,(a0,a1))
             
-            #circle_ps=patches.Circle((centroid_ps[1].item(), centroid_ps[0].item()), radius=rms_ps.item()/1000,facecolor=None,
-            #        edgecolor='black',linestyle='dotted',linewidth=3., fill=False)
             circle_ps=patches.Circle((centroid_ps[0].item(), centroid_ps[1].item()), radius=rms_ps.item()/1000,facecolor=None,
                     edgecolor='black',linestyle='dotted',linewidth=3., fill=False)
             fig[0].add_patch(circle_ps)
@@ -1800,8 +1800,6 @@ class HSSystem:
             
             add_interval(fig[0], [fig[0].get_xlim()[0]+2*d_max*1.5*0.95 - pixel_size, fig[0].get_xlim()[0]+2*d_max*1.5*0.95], [fig[0].get_ylim()[0] + 2*d_max*1.5*0.05, fig[0].get_ylim()[0] + 2*d_max*1.5*0.05], "||")
 
-            #circle_zemax=patches.Circle((centroid_zemax[1].item(), centroid_zemax[0].item()), radius=rms_zemax.item()/1000,facecolor=None,
-            #        edgecolor='black',linestyle='dotted',linewidth=3., fill=False)
             circle_zemax=patches.Circle((centroid_zemax[0].item(), centroid_zemax[1].item()), radius=rms_zemax.item()/1000,facecolor=None,
                     edgecolor='black',linestyle='dotted',linewidth=3., fill=False)
             fig[1].add_patch(circle_zemax)
@@ -1828,12 +1826,13 @@ class HSSystem:
             inset_ax1.set_xticks([])
             inset_ax1.set_yticks([])
 
-            plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-                            hspace = 0, wspace = 0)
+            #plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+            #                hspace = 0, wspace = 0)
             plt.margins(0,0)
 
-            #plt.suptitle(f'PSF at x={params[k][0][0]}, y={params[k][0][1]}, w={params[k][1]:.1f}')
-            plt.savefig(self.save_dir + f'psf_posx_{params[k][0][0]}_posy_{params[k][0][1]}_w_{params[k][1]:.1f}.png', format='png', bbox_inches = 'tight', pad_inches = 0)
+            plt.suptitle(f'PSF at x={params[k][0][0]}mm, y={params[k][0][1]}mm, w={params[k][1]:.1f}nm', fontsize = 70/2)
+            if self.save_dir is not None:
+                plt.savefig(self.save_dir + f'psf_posx_{params[k][0][0]}_posy_{params[k][0][1]}_w_{params[k][1]:.1f}.png', format='png', bbox_inches = 'tight', pad_inches = 0)
         plt.show()
 
     def fit_psf(self, nb_centric_circles, params, depth_list, angle_list, start_dist, pixel_size, kernel_size=11, show_psf=False):
