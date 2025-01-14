@@ -52,6 +52,8 @@ conda activate diffcassisim
                     |--scene10.mat                    
 ```
 
+These datasets belong to https://github.com/mengziyi64/TSA-Net.
+
 ## CASSI Simulator
 
 The main file containing all the methods and ways to modelize and use a CASSI simulated system are found under the `CASSI_class.py` file.
