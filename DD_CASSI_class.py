@@ -430,7 +430,7 @@ class DD_CASSI(HSSystem):
         
         return ax, fig
     
-    def expand_system_symmetrically(self, symmetry_ax = "horizontal", ax_position = 0., ax_normal = np.zeros(3)):
+    def expand_system_symmetrically(self, symmetry_ax = "horizontal", ax_position = 0., ax_theta = np.zeros(3)):
         """
         Expands the system symmetrically along a given axis. The expansion will be set at the end of the current system.
 
