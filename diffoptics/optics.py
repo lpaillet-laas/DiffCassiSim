@@ -412,13 +412,37 @@ class Lensgroup(Endpoint):
 
         if len(self.surfaces) == 1: # if there is only one surface, then it has to be the aperture
             s = self.surfaces[0]
+            if with_sensor:
+                try:
+                    self.surfaces.append(ThinLens(self.r_last, self.d_sensor, 0.0))
+                except AttributeError:
+                    with_sensor = False
+
             if isinstance(s, ThinLens):
-                ax.annotate('', xy=(s.d, s.r), xytext=(s.d, -s.r), arrowprops=dict(arrowstyle='<->', color='black'))
+                xyz = self.to_world.transform_point(
+                                            torch.stack(
+                                                (torch.tensor([s.r]), torch.zeros(1), torch.tensor([s.d])), axis=-1))
+                xyz_text = self.to_world.transform_point(
+                                            torch.stack(
+                                                (torch.tensor([-s.r]), torch.zeros(1), torch.tensor([s.d])), axis=-1))
+                annot = ax.annotate('', xy=(xyz[-1], xyz[0]), xytext=(xyz_text[-1], xyz_text[0]), arrowprops=dict(arrowstyle='<->', color='black'), annotation_clip=False)
+                annot.arrow_patch.set_clip_box(ax.bbox)
+                r = torch.linspace(-s.r, s.r, s.APERTURE_SAMPLING, device=self.device) # aperture sampling
+                z = s.surface_with_offset(r, torch.zeros(len(r), device=self.device))
+                plot(ax, z, r, color)
+
+                if with_sensor:
+                    r = torch.linspace(-self.surfaces[1].r, self.surfaces[1].r, self.surfaces[1].APERTURE_SAMPLING, device=self.device) # aperture sampling
+                    z = self.surfaces[1].surface_with_offset(r, torch.zeros(len(r), device=self.device))
+                    plot(ax, z, r, color)
+            elif isinstance(s, Mirror):
                 r = torch.linspace(-s.r, s.r, s.APERTURE_SAMPLING, device=self.device) # aperture sampling
                 z = s.surface_with_offset(r, torch.zeros(len(r), device=self.device))
                 plot(ax, z, r, color)
             else:
                 draw_aperture(ax, self.surfaces[0], color)
+            if with_sensor:
+                self.surfaces.pop()
         else:
             # draw sensor plane
             if with_sensor:
@@ -430,16 +454,23 @@ class Lensgroup(Endpoint):
             # draw surface
             for i, s in enumerate(self.surfaces):
                 # find aperture
-                if i < len(self.surfaces)-1 and not isinstance(s, ThinLens):
+                if i < len(self.surfaces)-1 and not (isinstance(s, ThinLens) or isinstance(s, Mirror)):
                     if self.materials[i].A < 1.0003 and self.materials[i+1].A < 1.0003: # both are AIR
                         draw_aperture(ax, s, color)
                         continue
                 if isinstance(s, ThinLens):
-                    ax.annotate('', xy=(s.d, s.r), xytext=(s.d, -s.r), arrowprops=dict(arrowstyle='<->', color='black'))
+                    xyz = self.to_world.transform_point(
+                                            torch.stack(
+                                                (torch.tensor([s.r]), torch.zeros(1), torch.tensor([s.d])), axis=-1))
+                    xyz_text = self.to_world.transform_point(
+                                                torch.stack(
+                                                    (torch.tensor([-s.r]), torch.zeros(1), torch.tensor([s.d])), axis=-1))
+                    annot = ax.annotate('', xy=(xyz[-1], xyz[0]), xytext=(xyz_text[-1], xyz_text[0]), arrowprops=dict(arrowstyle='<->', color='black'), annotation_clip=False)
+                    annot.arrow_patch.set_clip_box(ax.bbox)
                 r = torch.linspace(-s.r, s.r, s.APERTURE_SAMPLING, device=self.device) # aperture sampling
                 z = s.surface_with_offset(r, torch.zeros(len(r), device=self.device))
                 plot(ax, z, r, color)
-            
+
             # draw boundary
             s_prev = []
             for i, s in enumerate(self.surfaces):
@@ -488,6 +519,7 @@ class Lensgroup(Endpoint):
                     (x, torch.zeros_like(x, device=self.device), z), axis=-1
                 )
             )
+
             o = o.cpu().detach().numpy()
             z = o[...,2].flatten()
             x = o[...,0].flatten()
@@ -1899,7 +1931,7 @@ class XYPolynomial(Surface):
         if b is None:
             b = 0.
         self.b = torch.Tensor(np.asarray(b)).to(device)
-        print('ai.size = {}'.format(self.ai.shape[0]))
+        #print('ai.size = {}'.format(self.ai.shape[0]))
         self.to(self.device)
     
     @staticmethod
@@ -2191,6 +2223,71 @@ class ThinLens(Surface):
         return self.g(x, y)
     def reverse(self):
         pass
+
+class ThinLenslet(ThinLens):
+    def __init__(self, r, r0, d, f, is_square=False, device=torch.device('cpu')):
+        """ Thin lens surface. 
+        """
+        ThinLens.__init__(self, r, d, f, is_square=is_square, device=device)
+        self.f = torch.tensor([f])
+        self.r0 = torch.tensor([r0])
+        self.is_square = is_square
+
+    
+    def refract(self, ray):
+        """ For a thin lens, all rays will converge to z = f plane. Therefore we trace the chief-ray (parallel-shift to surface center) to find the final convergence point for each ray. 
+        
+            For coherent ray tracing, we can think it as a Fresnel lens with infinite refractive index.
+            (1) Lens maker's equation
+            (2) Spherical lens function
+        """
+        forward = (ray.d[..., 2] > 0).all()
+        # Calculate convergence point
+        if forward:
+            t0 = self.f / ray.d[..., 2]
+            xy_final = ray.d[..., :2] * t0.unsqueeze(-1)
+            z_final = torch.full_like(xy_final[..., 0].unsqueeze(-1), self.d.item() + self.f.item())
+            o_final = torch.cat([xy_final, z_final], dim=-1)
+        else:
+            t0 = - self.f / ray.d[..., 2]
+            xy_final = ray.d[..., :2] * t0.unsqueeze(-1)
+            z_final = torch.full_like(xy_final[..., 0].unsqueeze(-1), self.d.item() - self.f.item())
+            o_final = torch.cat([xy_final, z_final], dim=-1)
+        
+        # New ray direction
+        if self.is_square:
+            new_d = ray.d.clone()
+
+            new_d = torch.where((torch.abs(ray.o[...,0]) <= self.r0 or torch.abs(ray.o[...,1]) <= self.r0).unsqueeze(-1), o_final - ray.o, new_d)
+            new_d = nnF.normalize(new_d, p=2, dim=-1)
+            ray.d = new_d
+        else:
+            new_d = ray.d.clone()
+
+            new_d = torch.where((torch.sqrt(torch.square(ray.o[...,0]) + torch.square(ray.o[...,1])) <= self.r0).unsqueeze(-1), o_final - ray.o, new_d)
+            new_d = nnF.normalize(new_d, p=2, dim=-1)
+            ray.d = new_d
+
+
+        
+        return True, new_d
+    
+    
+    def g(self, x, y):
+        return torch.zeros_like(x)
+    
+    def dgd(self, x, y):
+        return torch.zeros_like(x), torch.zeros_like(x)
+
+    def h(self, z):
+        return -z
+
+    def dhd(self, z):
+        return -torch.ones_like(z)
+    def surface(self, x, y):
+        return self.g(x, y)
+    def reverse(self):
+        pass
     
 class FocusThinLens(ThinLens):
     def __init__(self, r, d, f, is_square=False, device=torch.device('cpu')):
@@ -2221,3 +2318,75 @@ class FocusThinLens(ThinLens):
         ray.d = new_d
         
         return True, new_d
+
+class Mirror(Surface):
+    def __init__(self, r, d, is_square=False, device=torch.device('cpu')):
+        """ Mirror surface. 
+        """
+        Surface.__init__(self, r, d, is_square=is_square, device=device)
+    
+    def ray_surface_intersection(self, ray, active=None):
+        """
+        Computes ray-surface intersection, one of the most crucial functions in this class.
+        Given ray(s) and an activity mask, the function computes the intersection point(s),
+        and determines if the intersection is valid, and update the active mask accordingly. 
+        
+        Args:
+            ray: Rays.
+            active: The initial active mask.
+
+        Returns:
+            valid_o: The updated active mask (if the current ray is physically active in tracing).
+            local: The computed intersection point(s).
+        """
+        solution_found, local = self.newtons_method(ray.maxt, ray.o, ray.d)
+        
+        valid_o = solution_found & self.is_valid(local[...,0:2])
+        if active is not None:
+            valid_o = active & valid_o
+        return valid_o, local
+    
+    def refract(self, ray):
+        """ For a thin lens, all rays will converge to z = f plane. Therefore we trace the chief-ray (parallel-shift to surface center) to find the final convergence point for each ray. 
+        
+            For coherent ray tracing, we can think it as a Fresnel lens with infinite refractive index.
+            (1) Lens maker's equation
+            (2) Spherical lens function
+        """
+        forward = (ray.d[..., 2] > 0).all()
+        # Calculate convergence point
+        # if forward:
+        #     t0 = self.f / ray.d[..., 2]
+        #     xy_final = ray.d[..., :2] * t0.unsqueeze(-1)
+        #     z_final = torch.full_like(xy_final[..., 0].unsqueeze(-1), self.d.item() + self.f.item())
+        #     o_final = torch.cat([xy_final, z_final], dim=-1)
+        # else:
+        #     t0 = - self.f / ray.d[..., 2]
+        #     xy_final = ray.d[..., :2] * t0.unsqueeze(-1)
+        #     z_final = torch.full_like(xy_final[..., 0].unsqueeze(-1), self.d.item() - self.f.item())
+        #     o_final = torch.cat([xy_final, z_final], dim=-1)
+        
+        # New ray direction
+        new_d = ray.d.clone()
+        new_d[..., 2] = -new_d[..., 2]
+        new_d = nnF.normalize(new_d, p=2, dim=-1)
+        ray.d = new_d
+        
+        return True, new_d
+    
+    
+    def g(self, x, y):
+        return torch.zeros_like(x)
+    
+    def dgd(self, x, y):
+        return torch.zeros_like(x), torch.zeros_like(x)
+
+    def h(self, z):
+        return -z
+
+    def dhd(self, z):
+        return -torch.ones_like(z)
+    def surface(self, x, y):
+        return self.g(x, y)
+    def reverse(self):
+        pass

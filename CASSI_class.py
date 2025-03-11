@@ -162,7 +162,20 @@ class HSSystem:
                         elif argument == 'is_square':
                             surface['params'][argument] = False
                 surfaces_processed.append(do.ThinLens(
-                    surface['R'], surface['d'] + accumulated_d, surface['params']['f'], device=self.device
+                    surface['R'], surface['d'] + accumulated_d, surface['params']['f'], is_square=surface['params']['is_square'], device=self.device
+                ))
+            elif surface['type'] == 'ThinLenslet':
+                arguments = ['f', 'is_square', 'r0']
+                for argument in arguments:
+                    if argument not in surface['params']:
+                        if argument == 'f':
+                            surface['params'][argument] = 0.
+                        elif argument == 'is_square':
+                            surface['params'][argument] = False
+                        elif argument == 'r0':
+                            surface['params'][argument] = 0.
+                surfaces_processed.append(do.ThinLenslet(
+                    surface['R'], surface['params']['r0'], surface['d'] + accumulated_d, surface['params']['f'], is_square=surface['params']['is_square'], device=self.device
                 ))
             elif surface['type'] == 'FocusThinLens':
                 arguments = ['f', 'is_square']
@@ -174,6 +187,15 @@ class HSSystem:
                             surface['params'][argument] = False
                 surfaces_processed.append(do.FocusThinLens(
                     surface['R'], surface['d'] + accumulated_d, surface['params']['f'], device=self.device
+                ))
+            elif surface['type'] == 'Mirror':
+                arguments = ['is_square']
+                for argument in arguments:
+                    if argument not in surface['params']:
+                        if argument == 'is_square':
+                            surface['params'][argument] = False
+                surfaces_processed.append(do.Mirror(
+                    surface['R'], surface['d'] + accumulated_d, is_square=surface['params']['is_square'], device=self.device
                 ))
 
             accumulated_d += surface['d']
@@ -443,7 +465,7 @@ class HSSystem:
         lens.update()
         self.system[lens_id] = lens
 
-    def render_single_back(self, wavelength, screen, numerical_aperture = 0.05):
+    def render_single_back(self, wavelength, screen, numerical_aperture = 0.05, save_pos = False):
         """
         Renders back propagation of single ray through a series of lenses onto a screen.
 
@@ -451,44 +473,49 @@ class HSSystem:
             wavelength (float): The wavelength of the light.
             screen (object): The screen object onto which the light is projected.
             numerical_aperture (float, optional): The numerical aperture of the system. Defaults to 0.05.
-
+            save_pos (bool, optional): Whether to save the positions of the resulting rays (True), or return a rendered image (False). Defaults to False.
         Returns:
             tuple: A tuple containing the intensity values (I) and the mask indicating valid pixels on the screen.
         """
         # Sample rays from the sensor
         ####valid, ray_mid = self.system[-1].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
         valid, ray_mid = self.system[0].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
+        #valid_start = valid.clone()
+
         # ray_mid.o = ray_mid.o[valid, :]
         # ray_mid.d = ray_mid.d[valid, :]
         #print("Ray 1: ", ray_mid)
         #print("Nb valid 1: ", torch.sum(valid))
         # Trace rays through each lens in the system
-        
-        ####for lens in self.system[::-1][1:-1]:
-        for lens in self.system[1:-1]:
-            ray_mid = lens.to_object.transform_ray(ray_mid)
-            valid_1, ray_mid = lens._trace(ray_mid)
-            #ray_mid.o = ray_mid.o[valid_1, :]
-            #ray_mid.d = ray_mid.d[valid_1, :]
-            #ray_mid = lens.mts_Rt.transform_ray(ray_mid)
-            ray_mid = lens.to_world.transform_ray(ray_mid)
-            #print(f"Ray mid: ", ray_mid)
-            #print("Nb valid mid: ", torch.sum(valid_1))
-            valid = valid & valid_1
+        if len(self.system) > 1:
+            ####for lens in self.system[::-1][1:-1]:
+            for lens in self.system[1:-1]:
+                ray_mid = lens.to_object.transform_ray(ray_mid)
+                valid_1, ray_mid = lens._trace(ray_mid)
+                #ray_mid.o = ray_mid.o[valid_1, :]
+                #ray_mid.d = ray_mid.d[valid_1, :]
+                #ray_mid = lens.mts_Rt.transform_ray(ray_mid)
+                ray_mid = lens.to_world.transform_ray(ray_mid)
+                #print(f"Ray mid: ", ray_mid)
+                #print("Nb valid mid: ", torch.sum(valid_1))
+                valid = valid & valid_1
 
-        # Trace rays to the first lens
-        ####ray_mid = self.system[0].to_object.transform_ray(ray_mid)
-        ray_mid = self.system[-1].to_object.transform_ray(ray_mid)
-        ####valid_last, ray_last = self.system[0]._trace(ray_mid)
-        valid_last, ray_last = self.system[-1]._trace(ray_mid)
-        #print("Nb valid last: ", torch.sum(valid_last))
-        valid_last = valid & valid_last
-        #print("Ray last before transform: ", ray_last)
+            # Trace rays to the first lens
+            ####ray_mid = self.system[0].to_object.transform_ray(ray_mid)
+            ray_mid = self.system[-1].to_object.transform_ray(ray_mid)
+            ####valid_last, ray_last = self.system[0]._trace(ray_mid)
+            valid_last, ray_last = self.system[-1]._trace(ray_mid)
+            #print("Nb valid last: ", torch.sum(valid_last))
+            valid_last = valid & valid_last
+            #print("Ray last before transform: ", ray_last)
 
-        #ray_last = self.system[0].mts_Rt.transform_ray(ray_last)
-        ####ray_last = self.system[0].to_world.transform_ray(ray_last)
-        ray_last = self.system[-1].to_world.transform_ray(ray_last)
-        #print("Ray last: ", ray_last)
+            #ray_last = self.system[0].mts_Rt.transform_ray(ray_last)
+            ####ray_last = self.system[0].to_world.transform_ray(ray_last)
+            ray_last = self.system[-1].to_world.transform_ray(ray_last)
+            #print("Ray last: ", ray_last)
+        else:
+            ray_last = ray_mid
+            valid_last = valid
         
 
         # Intersect rays with the screen
@@ -496,10 +523,15 @@ class HSSystem:
         # Apply mask to filter out invalid rays
         mask = valid_last & valid_screen
         
-        # Calculate intensity values on the screen
-        I = screen.shading(uv, mask)
-        
-        return I, mask
+        print("Ratio valid rays: ", (torch.sum(mask)/(screen.texture.shape[0]*screen.texture.shape[1])).item())
+
+        if save_pos:
+            return uv, mask
+        else:
+            # Calculate intensity values on the screen
+            I = screen.shading(uv, mask)
+            
+            return I, mask
 
     def render_single_back_save_pos(self, wavelength, screen, numerical_aperture = 0.05):
         """
@@ -513,46 +545,7 @@ class HSSystem:
         Returns:
             tuple: A tuple containing the rays positions (uv) and the mask indicating valid pixels on the screen.
         """
-        # Sample rays from the sensor
-        ####valid, ray_mid = self.system[-1].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
-        valid, ray_mid = self.system[0].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
-        # ray_mid.o = ray_mid.o[valid, :]
-        # ray_mid.d = ray_mid.d[valid, :]
-        # print("Ray 1: ", ray_mid)
-        print("Nb valid 1: ", torch.sum(valid))
-        # Trace rays through each lens in the system
-        
-        ####for lens in self.system[::-1][1:-1]:
-        for lens in self.system[1:-1]:
-            ray_mid = lens.to_object.transform_ray(ray_mid)
-            valid_1, ray_mid = lens._trace(ray_mid)
-            #ray_mid.o = ray_mid.o[valid_1, :]
-            #ray_mid.d = ray_mid.d[valid_1, :]
-            #ray_mid = lens.mts_Rt.transform_ray(ray_mid)
-            ray_mid = lens.to_world.transform_ray(ray_mid)
-            #print(f"Ray mid: ", ray_mid)
-            print("Nb valid mid: ", torch.sum(valid_1))
-            valid = valid & valid_1
-
-        # Trace rays to the first lens
-        ####ray_mid = self.system[0].to_object.transform_ray(ray_mid)
-        ray_mid = self.system[-1].to_object.transform_ray(ray_mid)
-        ####valid_last, ray_last = self.system[0]._trace(ray_mid)
-        valid_last, ray_last = self.system[-1]._trace(ray_mid)
-        print("Nb valid last: ", torch.sum(valid_last))
-        valid_last = valid & valid_last
-        #print("Ray last before transform: ", ray_last)
-
-        #ray_last = self.system[0].mts_Rt.transform_ray(ray_last)
-        ####ray_last = self.system[0].to_world.transform_ray(ray_last)
-        ray_last = self.system[-1].to_world.transform_ray(ray_last)
-        #print("Ray last: ", ray_last)
-        
-
-        # Intersect rays with the screen
-        uv, valid_screen = screen.intersect(ray_last)[1:]
-        # Apply mask to filter out invalid rays
-        mask = valid_last & valid_screen
+        uv, mask = self.render_single_back(wavelength, screen, numerical_aperture, save_pos = True)
 
         return uv, mask
     
@@ -912,6 +905,7 @@ class HSSystem:
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
 
         texturesize = np.array(texture_torch.shape[0:2])
+        
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
@@ -1028,10 +1022,11 @@ class HSSystem:
         z = max(torch.norm(source_pos - torch.tensor([-self.entry_radius, 0])), torch.norm(source_pos - torch.tensor([self.entry_radius, 0])),
                             torch.norm(source_pos - torch.tensor([0, -self.entry_radius])), torch.norm(source_pos - torch.tensor([0, self.entry_radius])))
         
-        z = self.system[0].surfaces[0].d #TODO: Check if this is correct
+        z = self.system[0].surfaces[0].d + self.system[0].origin[-1] + self.system[0].shift[-1]#TODO: Check if this is correct
         x, y = draw_circle_hexapolar(nb_centric_circles, z, max_angle, center_x = 0, center_y = 0)
 
-        dist = torch.stack((x, y, self.system[0].surfaces[0].d*torch.ones(x.shape[0])), dim=-1)
+        #dist = torch.stack((x, y, self.system[0].surfaces[0].d*torch.ones(x.shape[0])), dim=-1)
+        dist = torch.stack((x, y, z*torch.ones(x.shape[0])), dim=-1)
 
         return dist
     
@@ -1283,7 +1278,7 @@ class HSSystem:
         
         # If there is only one lens, plot the raytraces with the sensor
         if self.size_system==1:
-            ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, linewidth=linewidth, show=True, with_sensor=True)
+            ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, linewidth=linewidth, show=show, with_sensor=True, color=color)
             return ax, fig
         
         # Plot the raytraces for the first lens without the sensor
@@ -1517,7 +1512,7 @@ class HSSystem:
             torch.Tensor: A tensor containing the positions of the central rays for each wavelength.
                           The tensor has shape (len(wavelengths), 2).
         """
-        # Rest of the code...
+        # Initialize a chief ray
         o = torch.zeros((1,1,3), device=self.device)
         d = torch.zeros((1,1,3), device=self.device)
         d[0,0,-1] = 1
@@ -1549,7 +1544,7 @@ class HSSystem:
         ax, fig = None, None
         for ind, source_pos in enumerate(list_source_pos):
             d = self.extract_hexapolar_dir(nb_centric_circles, source_pos, max_angle) 
-            
+
             wavelength = torch.Tensor([wavelength]).float().to(self.device)
 
             ray = self.sample_rays_pos(wavelength, None, source_pos[0], source_pos[1], 0., d = d)
@@ -1558,6 +1553,7 @@ class HSSystem:
             # ray.d[..., 2] *= -1
             # print(ray)
             oss = [None for i in range(self.size_system)]
+            #print(ray)
 
             # Trace rays through each lens in the system
             for i, lens in enumerate(self.system[:-1]):
@@ -1571,8 +1567,9 @@ class HSSystem:
             ps, oss_final = self.system[-1].trace_to_sensor_r(ray, ignore_invalid=True)
             oss[-1] = oss_final
             ax, fig = self.plot_setup_with_rays(oss, ax=ax, fig=fig, show=False, color=colors[ind])
-            if self.save_dir is not None:
-                fig.savefig(os.path.join(self.save_dir, "setup_with_rays.svg"), format="svg")
+            #print(oss)
+        if self.save_dir is not None:
+            fig.savefig(os.path.join(self.save_dir, "setup_with_rays.svg"), format="svg")
         plt.show()
 
     def compare_wavelength_trace(self, nb_centric_circles, list_source_pos, max_angle, wavelengths, colors=None, linewidth=1.0):
