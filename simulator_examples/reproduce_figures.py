@@ -135,7 +135,7 @@ elif (figure_number == 8):
     source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
     w_list = [450.0, 520., 650.]
 
-    file_name = "./data_zemax/single_prism_misaligned_5deg_delta_beta_c/ray_positions_wavelength_W1_field_F1.txt"
+    file_name = "./data_zemax/single_prism_aligned/ray_positions_wavelength_W1_field_F1.txt"
 
     params = [[source_pos_list[i], w_list[j], extract_positions(file_name.replace('W1', f'W{j+1}').replace('F1', f'F{i+1}'))]
                 for i in range(len(source_pos_list)) for j in range(len(w_list))]
@@ -160,7 +160,7 @@ elif (figure_number == 10):
     source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
     w_list = [450.0, 520., 650.]
 
-    file_name = "./data_zemax/single_prism_misaligned_5deg_delta_beta_c/ray_positions_wavelength_W1_field_F1.txt"
+    file_name = "./data_zemax/amici_prism_aligned/ray_positions_wavelength_W1_field_F1.txt"
 
     params = [[source_pos_list[i], w_list[j], extract_positions(file_name.replace('W1', f'W{j+1}').replace('F1', f'F{i+1}'))]
                 for i in range(len(source_pos_list)) for j in range(len(w_list))]
@@ -185,7 +185,7 @@ elif (figure_number == 11):
     source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
     w_list = [450.0, 520., 650.]
 
-    file_name = "./data_zemax/single_prism_misaligned_5deg_delta_beta_c/ray_positions_wavelength_W1_field_F1.txt"
+    file_name = "./data_zemax/amici_prism_misaligned/ray_positions_wavelength_W1_field_F1.txt"
 
     params = [[source_pos_list[i], w_list[j], extract_positions(file_name.replace('W1', f'W{j+1}').replace('F1', f'F{i+1}'))]
                 for i in range(len(source_pos_list)) for j in range(len(w_list))]
