@@ -1833,6 +1833,7 @@ class HSSystem:
             plt.suptitle(f'PSF at x={params[k][0][0]}mm, y={params[k][0][1]}mm, w={params[k][1]:.1f}nm', fontsize = 70/2)
             if self.save_dir is not None:
                 plt.savefig(self.save_dir + f'psf_posx_{params[k][0][0]}_posy_{params[k][0][1]}_w_{params[k][1]:.1f}.png', format='png', bbox_inches = 'tight', pad_inches = 0)
+            plt.show()
         plt.show()
 
     def fit_psf(self, nb_centric_circles, params, depth_list, angle_list, start_dist, pixel_size, kernel_size=11, show_psf=False):
