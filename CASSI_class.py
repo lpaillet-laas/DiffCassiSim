@@ -1019,8 +1019,8 @@ class HSSystem:
         Returns:
             dist (torch.Tensor): The extracted hexapolar direction.
         """
-        z = max(torch.norm(source_pos - torch.tensor([-self.entry_radius, 0])), torch.norm(source_pos - torch.tensor([self.entry_radius, 0])),
-                            torch.norm(source_pos - torch.tensor([0, -self.entry_radius])), torch.norm(source_pos - torch.tensor([0, self.entry_radius])))
+        #z = max(torch.norm(source_pos - torch.tensor([-self.entry_radius, 0])), torch.norm(source_pos - torch.tensor([self.entry_radius, 0])),
+        #                    torch.norm(source_pos - torch.tensor([0, -self.entry_radius])), torch.norm(source_pos - torch.tensor([0, self.entry_radius])))
         
         z = self.system[0].surfaces[0].d + self.system[0].origin[-1] + self.system[0].shift[-1]#TODO: Check if this is correct
         x, y = draw_circle_hexapolar(nb_centric_circles, z, max_angle, center_x = 0, center_y = 0)
@@ -1098,6 +1098,41 @@ class HSSystem:
         if not show_res:
             plt.close()
         return ps[...,:2]
+    
+    def trace_through_system(self, nb_centric_circles, source_pos, max_angle, angles=[[0, 0]], wavelength = 520, ignore_invalid = False):
+        """
+        Traces the point spread function (PSF) from a point source through a series of lenses.
+
+        Args:
+            nb_centric_circles (int): The number of hexapolar circles.
+            source_pos (torch.Tensor): The position of the source.
+            max_angle (float): Maximum angle in degrees from the center of the circle to the generated points.
+            angles (list): angles (list): A list of angles in degrees, where each angle is represented as a tuple (phi, psi) (default: [[0,0]]). DEPRECATED
+            wavelength (int): Wavelength of the rays in nanometers (default: 550)
+            d (ndarray, optional): Direction of the rays. Defaults to None.
+            ignore_invalid (bool): Flag indicating whether to ignore invalid rays (default: False)
+
+        Returns:
+            ps (array): Array containing the x and y coordinates of the PSF
+        """
+        
+        if self.system is None:
+            raise AttributeError('lenses must be provided')
+        
+        # sample wavelengths in [nm]
+        wavelength = torch.Tensor([wavelength]).float().to(self.device)
+
+        d = self.extract_hexapolar_dir(nb_centric_circles, source_pos, max_angle) 
+        ray = self.sample_rays_pos(wavelength, angles, x_pos = source_pos[0], y_pos = source_pos[1], z_pos = 0., d = d)
+
+        # Trace rays through each lens in the system
+        for i, lens in enumerate(self.system[:-1]):
+            ray, valid = lens.trace(ray)
+            if not ignore_invalid:
+                ray.o = ray.o[valid, :]
+                ray.d = ray.d[valid, :]
+        
+        return ray
     
     def plot_spot_diagram(self, wavelength, nb_pixels, size_pixel, normalize=False, show=True, nb_pts_x=3, nb_pts_y=3):
         """
@@ -1601,6 +1636,7 @@ class HSSystem:
 
                 # Trace rays through each lens in the system
                 for i, lens in enumerate(self.system[:-1]):
+                    #print("\nLens: ", i, len(self.system))
                     ray, valid, oss_mid = lens.trace_r(ray)
                     oss[i] = oss_mid
 
@@ -1830,6 +1866,7 @@ class HSSystem:
             plt.suptitle(f'PSF at x={params[k][0][0]}mm, y={params[k][0][1]}mm, w={params[k][1]:.1f}nm', fontsize = 70/2)
             if self.save_dir is not None:
                 plt.savefig(self.save_dir + f'psf_posx_{params[k][0][0]}_posy_{params[k][0][1]}_w_{params[k][1]:.1f}.png', format='png', bbox_inches = 'tight', pad_inches = 0)
+            plt.show()
         plt.show()
 
     def fit_psf(self, nb_centric_circles, params, depth_list, angle_list, start_dist, pixel_size, kernel_size=11, show_psf=False):
@@ -2144,7 +2181,9 @@ class HSSystem:
                         saved_data[d, ind, :] = np.var(ps.numpy(), axis=0)
                         ind+=1
                 print(f"Depth {depth:.3f} done")
-            np.save(self.save_dir +'/psfs_optim_random/' + f'vars_{n}.npy', saved_data)
+            
+            if self.save_dir is not None:
+                np.save(self.save_dir +'/psfs_optim_random/' + f'vars_{n}.npy', saved_data)
             plt.figure()
             plt.plot(depth_list, np.mean(saved_data[:,:,0], axis=-1))
             plt.title("Variance w.r.t. z for y dimension")
