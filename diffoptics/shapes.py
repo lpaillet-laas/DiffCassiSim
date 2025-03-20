@@ -68,7 +68,7 @@ class Screen(Endpoint):
             (torch.abs(local[..., 0] - self.texture_shift[0]) <= self.halfsize[0]) &
             (torch.abs(local[..., 1] - self.texture_shift[1]) <= self.halfsize[1])
         )
-
+        
         # UV coordinate
         uv = (local[..., 0:2] + self.halfsize - self.texture_shift) / self.size
 

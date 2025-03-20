@@ -840,8 +840,11 @@ class Lensgroup(Endpoint):
         Trace rays towards intersecting onto the sensor plane, with records.
         """
         # trace rays
+        #print("Rays before trace_r: ", ray.d)
         ray_final, valid, oss = self.trace_r(ray)
+        #print("Rays final before to_object: ", ray.d)
         ray_final = self.to_object.transform_ray(ray_final)   # Seems to work better that way
+        #print("Rays final after last transform: ", ray_final.d)
         # intersecting sensor plane
         t = (self.d_sensor - ray_final.o[...,2]) / ray_final.d[...,2]
         p = ray_final(t)
@@ -874,7 +877,10 @@ class Lensgroup(Endpoint):
         # in local
         ray_in = self.to_object.transform_ray(ray)
 
-        valid, ray_out = self._trace(ray_in, stop_ind=stop_ind, record=False)
+        basic_dir = torch.Tensor([0.0, 0.0, 1.0]).to(self.device)
+        transformed_dir = self.to_object.transform_vector(basic_dir)
+
+        valid, ray_out = self._trace(ray_in, stop_ind=stop_ind, record=False, transformed_dir=transformed_dir)
         
         # in world
         ray_final = self.to_world.transform_ray(ray_out)
@@ -897,12 +903,23 @@ class Lensgroup(Endpoint):
             self.update()
 
         # in local
+        #print("Before to object: ", (ray.d[..., 2] > 0).all())
         ray_in = self.to_object.transform_ray(ray)
+        #print("After to object: ", (ray_in.d[..., 2] > 0).all())
+        #print("Ray before object: ", ray)
+        #print("Ray after object: ", ray_in)
 
-        valid, ray_out, oss = self._trace(ray_in, stop_ind=stop_ind, record=True)
+        basic_dir = torch.Tensor([0.0, 0.0, 1.0]).to(self.device)
+        transformed_dir = self.to_object.transform_vector(basic_dir)
+
+        valid, ray_out, oss = self._trace(ray_in, stop_ind=stop_ind, record=True, transformed_dir=transformed_dir)
         
         # in world
         ray_final = self.to_world.transform_ray(ray_out)
+        #print("Ray after trace: ", ray_out)
+        #print("Ray after world: ", ray_final)
+        #print("After to world: ", (ray_final.d[..., 2] > 0).all())
+        
         for os in oss:
             for o in os:
                 os = self.to_world.transform_point(torch.Tensor(np.asarray(os)).to(self.device)).cpu().detach().numpy()
@@ -1047,12 +1064,16 @@ class Lensgroup(Endpoint):
         # perturb sensor position by half pixel size
         p_sensor = p_sensor + (np.random.rand(*p_sensor.shape) - 0.5) * self.pixel_size
 
+        old_p_sensor_norm = np.linalg.norm(p_sensor, axis=1)
+
         # offset sensor positions
         p_sensor = p_sensor + offset
 
         # aperture samples (last surface plane)
         p_aperture = sample3 * self.aperture_radius
         d_xy = p_aperture - p_sensor
+
+        # self.aperture_distance = torch.abs(self.aperture_distance) if isinstance(self.aperture_distance, torch.Tensor) else np.abs(self.aperture_distance)
 
         # construct ray
         #o = torch.Tensor(np.hstack((p_sensor, np.zeros((N,1)))).reshape((N,3)))
@@ -1070,12 +1091,12 @@ class Lensgroup(Endpoint):
         created_ray = Ray(o, d, wavelength, device=self.device)
         # trace        
 
-        o = torch.Tensor(np.hstack((p_sensor, np.zeros((N,1)))).reshape((N,3)))
+        """ o = torch.Tensor(np.hstack((p_sensor, np.zeros((N,1)))).reshape((N,3)))
         #o = torch.Tensor(np.hstack((p_sensor, np.zeros((N,1)) + d_sensor)).reshape((N,3)))
         d = torch.Tensor(np.hstack((d_xy, self.aperture_distance.item() * np.ones((N,1)))).reshape((N,3)))
         d = normalize(d)
         
-        shifted_ray = self.to_object.transform_ray(Ray(o, d, wavelength, device=self.device))
+        shifted_ray = self.to_object.transform_ray(Ray(o, d, wavelength, device=self.device)) """
 
         # print("Created ray: ", created_ray)
         # print("Shifted ray: ", shifted_ray)
@@ -1088,11 +1109,34 @@ class Lensgroup(Endpoint):
         #created_ray.o[...,0] -= 2*(self.shift[0].item() + self.origin[0].item())
 
         # Used because the acquisition is shifted afterwards, so that's why the *2 is here, and why it isn't "compensated" as it is in the x direction
-        created_ray.o[...,1] -= 2*(self.shift[1].item() + self.origin[1].item()) # To shift the sensor plane to its true place #TODO Why only in y and not x ?? idk (x causes problems, y fixes problems so wtf)
+        created_ray.o[...,1] -= 2*(self.shift[1].item() + self.origin[1].item()) # To shift the sensor plane to its true place #TODO y axis only cause it is flipped along that axis (x causes problems in this case, y fixes problems so wtf)
         if is_shifted:
+            raise ValueError("Shifted ray in sampling is deprecated. Use created ray")
+            shifted_ray = 0.
             valid, ray = self._trace(shifted_ray)
         else:
-            valid, ray = self._trace(created_ray)
+            basic_dir = torch.Tensor([0., 0., 1.]).to(self.device)
+            transformed_dir = self.to_object.transform_vector(basic_dir)
+            #print("t: ", self.to_object.t)
+            #print("R: ", self.to_object.R)
+
+            transfo_without_t = Transformation(self.to_object.R, torch.Tensor([0., 0., 0.]).to(self.device))
+            #created_ray = self.to_object.transform_ray(created_ray)
+            #created_ray.o = transfo_without_t.transform_point(created_ray.o)
+
+            #print("Ray before trace: ", created_ray)
+
+            #created_ray.d = torch.zeros_like(created_ray.d)
+            fake_o = transfo_without_t.transform_point(torch.Tensor(np.hstack((p_sensor, np.zeros((N,1)))).reshape((N,3))))[..., :2]
+
+            #fake_o = fake_o/np.linalg.norm(fake_o, axis=1)[:, None] * old_p_sensor_norm[:, None]
+            
+            #if torch.abs(torch.det(transfo_without_t.R) - 1) < 1e-6:
+            if np.abs(self.theta_x) > 90. or np.abs(self.theta_y) > 90.:
+                #created_ray.o = torch.Tensor(np.hstack((fake_o.numpy(), np.zeros((N,1)) + d_sensor)).reshape((N,3))) #TODO check if this is correct, and in what case the created rays have to be changed. Apparently they need to be changed when there's a theta_x rotation apparently, maybe when the rotation is above 90 degrees in any direction
+                zzzz= False
+            #created_ray = transfo_without_t.transform_ray(created_ray)
+            valid, ray = self._trace(created_ray, transformed_dir=transformed_dir)
         
         # new_o_radius = np.sqrt(ray.o[:,0]**2 + ray.o[:,1]**2)
         # print("max pre transport: ", new_o_radius.max())
@@ -1137,17 +1181,21 @@ class Lensgroup(Endpoint):
             wt = tmp[..., None] * n + eta_ * (wi - cosi[..., None] * n)
         return valid, wt
 
-    def _trace(self, ray, stop_ind=None, record=False):
+    def _trace(self, ray, stop_ind=None, record=False, transformed_dir = torch.Tensor([0., 0., 1.])):
         if stop_ind is None:
             stop_ind = len(self.surfaces)-1  # last index to stop
-        is_forward = (ray.d[..., 2] > 0).all()
+        is_forward = (ray.d[..., 2]*transformed_dir[-1] > 0).all()
+
+        #is_forward = (ray.d[..., 2] > 0).all()
+
+        #print(is_forward, transformed_dir)
         # TODO: Check ray origins to ensure valid ray intersections onto the surfaces
         if is_forward:
-            return self._forward_tracing(ray, stop_ind, record)
+            return self._forward_tracing(ray, stop_ind, record, transformed_dir=transformed_dir)
         else:
-            return self._backward_tracing(ray, stop_ind, record)
+            return self._backward_tracing(ray, stop_ind, record, transformed_dir=transformed_dir)
 
-    def _forward_tracing(self, ray, stop_ind, record):
+    def _forward_tracing(self, ray, stop_ind, record, transformed_dir = torch.Tensor([0., 0., 1.])):
         wavelength = ray.wavelength
         dim = ray.o[..., 2].shape
         
@@ -1157,19 +1205,21 @@ class Lensgroup(Endpoint):
                 oss.append([ray.o[i,:].cpu().detach().numpy()])
 
         valid = torch.ones(dim, device=self.device).bool()
+
         for i in range(stop_ind+1):
+            #print(i, self.surfaces[i])
             eta = self.materials[i].ior(wavelength) / self.materials[i+1].ior(wavelength)
 
             # ray intersecting surface
             valid_o, p = self.surfaces[i].ray_surface_intersection(ray, valid)
 
             # get surface normal and refract 
-            n = self.surfaces[i].normal(p[..., 0], p[..., 1])
+            n = self.surfaces[i].normal(p[..., 0], p[..., 1])*torch.sign(transformed_dir[-1]) # adjust the normal direction
             ray.o = p
             try:
                 valid_d, d = self.surfaces[i].refract(ray)
             except AttributeError:
-                valid_d, d = self._refract(ray.d, -n, eta)
+                valid_d, d = self._refract(ray.d, -n, eta) # forward: revert the normal
             
             # check validity
             valid = valid & valid_o & valid_d
@@ -1189,7 +1239,7 @@ class Lensgroup(Endpoint):
         else:
             return valid, ray
         
-    def _backward_tracing(self, ray, stop_ind, record):
+    def _backward_tracing(self, ray, stop_ind, record, transformed_dir = torch.Tensor([0., 0., 1.])):
         wavelength = ray.wavelength
         dim = ray.o[..., 2].shape
         
@@ -1207,8 +1257,11 @@ class Lensgroup(Endpoint):
             valid_o, p = surface.ray_surface_intersection(ray, valid)
 
             # get surface normal and refract 
-            n = surface.normal(p[..., 0], p[..., 1])
-            valid_d, d = self._refract(ray.d, n, eta)  # backward: no need to revert the normal
+            n = surface.normal(p[..., 0], p[..., 1]) * torch.sign(transformed_dir[-1]) # adjust the normal direction
+            try:
+                valid_d, d = self.surfaces[i].refract(ray)
+            except AttributeError:
+                valid_d, d = self._refract(ray.d, n, eta) # backward: no need to revert the normal
 
             # check validity
             valid = valid & valid_o & valid_d
@@ -2188,6 +2241,7 @@ class ThinLens(Surface):
             (2) Spherical lens function
         """
         forward = (ray.d[..., 2] > 0).all()
+        #print(forward)
         # Calculate convergence point
         if forward:
             t0 = self.f / ray.d[..., 2]
