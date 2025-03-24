@@ -1109,7 +1109,7 @@ class Lensgroup(Endpoint):
         #created_ray.o[...,0] -= 2*(self.shift[0].item() + self.origin[0].item())
 
         # Used because the acquisition is shifted afterwards, so that's why the *2 is here, and why it isn't "compensated" as it is in the x direction
-        created_ray.o[...,1] -= 2*(self.shift[1].item() + self.origin[1].item()) # To shift the sensor plane to its true place #TODO y axis only cause it is flipped along that axis (x causes problems in this case, y fixes problems so wtf)
+        created_ray.o[...,1] -= 2*(self.shift[1].item() + self.origin[1].item()) # To shift the sensor plane to its true place #TODO y axis only cause it is flipped along that axis (x causes problems in this case, y fixes problems)
         if is_shifted:
             raise ValueError("Shifted ray in sampling is deprecated. Use created ray")
             shifted_ray = 0.
@@ -1133,7 +1133,7 @@ class Lensgroup(Endpoint):
             
             #if torch.abs(torch.det(transfo_without_t.R) - 1) < 1e-6:
             if np.abs(self.theta_x) > 90. or np.abs(self.theta_y) > 90.:
-                #created_ray.o = torch.Tensor(np.hstack((fake_o.numpy(), np.zeros((N,1)) + d_sensor)).reshape((N,3))) #TODO check if this is correct, and in what case the created rays have to be changed. Apparently they need to be changed when there's a theta_x rotation apparently, maybe when the rotation is above 90 degrees in any direction
+                #created_ray.o = torch.Tensor(np.hstack((fake_o.numpy(), np.zeros((N,1)) + d_sensor)).reshape((N,3))) #TODO check if this is correct, and in what case the created rays have to be changed. Apparently they need to be changed when there's a theta_x rotation, maybe when the rotation is above 90 degrees in any direction
                 zzzz= False
             #created_ray = transfo_without_t.transform_ray(created_ray)
             valid, ray = self._trace(created_ray, transformed_dir=transformed_dir)

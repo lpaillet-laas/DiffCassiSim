@@ -430,7 +430,6 @@ class HSSystem:
         lens.surfaces.reverse()
         if lens_id == -1:
             lens.surfaces.pop(0) # remove sensor plane
-        #lens.surfaces.pop(0) # remove sensor plane
         # reverse materials
         lens.materials.reverse()
 
@@ -446,14 +445,13 @@ class HSSystem:
         lens.mts_prepared = True
         #lens.d_sensor = 0
 
-        #lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance + d_total - lens.origin[2]]).float().to(device=self.device)
         #print("Sd: ", start_distance)
         #print("Total: ", d_total)
 
         ######lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance + d_total*np.cos(lens.theta_y*np.pi/180).item()]).float().to(device=self.device)
         lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance - lens.origin[2]]).float().to(device=self.device)
         lens.d_sensor = - lens.d_sensor
-        #lens.d_sensor = - lens.d_sensor - lens.surfaces[0].d
+        
         lens.shift = torch.tensor([lens.shift[0], - lens.shift[1], - lens.shift[2]]).float().to(device=self.device)
         lens.theta_x *= -1
         lens.theta_y *= -1
@@ -482,8 +480,6 @@ class HSSystem:
         valid, ray_mid = self.system[0].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
         #valid_start = valid.clone()
 
-        # ray_mid.o = ray_mid.o[valid, :]
-        # ray_mid.d = ray_mid.d[valid, :]
         #print("Ray 1: ", ray_mid)
         #print("Nb valid 1: ", torch.sum(valid))
         # Trace rays through each lens in the system
@@ -492,25 +488,19 @@ class HSSystem:
             for lens in self.system[1:-1]:
                 ray_mid = lens.to_object.transform_ray(ray_mid)
                 valid_1, ray_mid = lens._trace(ray_mid)
-                #ray_mid.o = ray_mid.o[valid_1, :]
-                #ray_mid.d = ray_mid.d[valid_1, :]
-                #ray_mid = lens.mts_Rt.transform_ray(ray_mid)
                 ray_mid = lens.to_world.transform_ray(ray_mid)
                 #print(f"Ray mid: ", ray_mid)
                 #print("Nb valid mid: ", torch.sum(valid_1))
                 valid = valid & valid_1
 
             # Trace rays to the first lens
-            ####ray_mid = self.system[0].to_object.transform_ray(ray_mid)
             ray_mid = self.system[-1].to_object.transform_ray(ray_mid)
-            ####valid_last, ray_last = self.system[0]._trace(ray_mid)
+            
             valid_last, ray_last = self.system[-1]._trace(ray_mid)
             #print("Nb valid last: ", torch.sum(valid_last))
             valid_last = valid & valid_last
             #print("Ray last before transform: ", ray_last)
 
-            #ray_last = self.system[0].mts_Rt.transform_ray(ray_last)
-            ####ray_last = self.system[0].to_world.transform_ray(ray_last)
             ray_last = self.system[-1].to_world.transform_ray(ray_last)
             #print("Ray last: ", ray_last)
         else:
@@ -570,11 +560,8 @@ class HSSystem:
         for i, lens in enumerate(self.system[::-1]):
             lens_mts_R, lens_mts_t = lens._compute_transformation().R, lens._compute_transformation().t
             if i > 0:
-                #self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = self.system[::-1][i-1].surfaces[-1].d + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
-                #self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = self.system[::-1][i-1].origin[-1] + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
                 self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
             else:
-                #self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = offsets[-1], R=lens_mts_R, t=lens_mts_t)  
                 max_z = lens.d_sensor*torch.cos(lens.theta_y*np.pi/180) + lens.origin[-1] + lens.shift[-1] # Last z coordinate in absolute coordinates
                 self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-1], R=lens_mts_R, t=lens_mts_t)   
 
@@ -594,11 +581,12 @@ class HSSystem:
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
         texturesize = np.array(texture_torch.shape[0:2])
 
+        # setup screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        print("Texture nonzero: ", texture_torch.count_nonzero())
+        #print("Texture nonzero: ", texture_torch.count_nonzero())
         # render
         ray_counts_per_pixel = nb_rays
         time_start = time.time()
@@ -659,11 +647,12 @@ class HSSystem:
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
         texturesize = torch.tensor(texture_torch.shape[0:2], device=self.device)
 
+        # setup screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        print("Texture nonzero: ", texture_torch.count_nonzero())
+        #print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
         ray_counts_per_pixel = nb_rays
@@ -683,11 +672,7 @@ class HSSystem:
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-            print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
+            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape(*np.flip(np.asarray(self.system[0].film_size))) # Flip
             Is.append(I)
         # show image
@@ -746,11 +731,12 @@ class HSSystem:
         texture_torch = texture_torch.rot90(1, dims=[1, 2])
         texturesize = np.array(texture_torch.shape[1:3])
 
+        # setup screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        ####print("Texture nonzero: ", texture_torch.count_nonzero())
+        #print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
         ray_counts_per_pixel = nb_rays
@@ -770,12 +756,7 @@ class HSSystem:
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-            #####print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
-            # I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0])).flip(2) # Flip
+            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0]))
             Is.append(I)
         # show image
@@ -809,6 +790,7 @@ class HSSystem:
         texture_torch = texture_torch.rot90(1, dims=[1, 2])
         texturesize = np.array(texture_torch.shape[1:3])
 
+        # setup screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
@@ -828,12 +810,7 @@ class HSSystem:
         M = big_mask.sum(dim=1) # [nC, N]
         I = I / (M.unsqueeze(0) + 1e-10)
         # reshape data to a 2D image
-        #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-        #####print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-        #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-        #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-        #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
-        # I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0])).flip(2) # Flip
+        ##print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
         I = I.reshape((-1, I.shape[1], self.system[0].film_size[1], self.system[0].film_size[0]))
         # show image
         I_rendered = I.permute(0, 2, 3, 1)#.astype(np.uint8)
@@ -864,12 +841,8 @@ class HSSystem:
         for i, lens in enumerate(self.system[::-1]):
             lens_mts_R, lens_mts_t = lens._compute_transformation().R, lens._compute_transformation().t
             if i > 0:
-                #self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = self.system[::-1][i-1].surfaces[-1].d + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
-                #self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = self.system[::-1][i-1].origin[-1] + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
                 self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
             else:
-                
-                #self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = offsets[-1], R=lens_mts_R, t=lens_mts_t)  
                 max_z = lens.d_sensor*torch.cos(lens.theta_y*np.pi/180) + lens.origin[-1] + lens.shift[-1] # Last z coordinate in absolute coordinates
                 self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-1], R=lens_mts_R, t=lens_mts_t)    
             #print("Surface ", i)
@@ -887,11 +860,7 @@ class HSSystem:
 
         # default texture
         if texture is None:
-            size_pattern = tuple(self.system[0].film_size)
-            texture = np.zeros(size_pattern + (nb_wavelengths,)).astype(np.float32)
-            texture[int(0.1*size_pattern[0]):-int(0.3*size_pattern[0]), size_pattern[1]//2 + 0*4, :] = 1                # Big vertical
-            texture[size_pattern[0]//2, int(0.2*size_pattern[1]):int(0.8*size_pattern[1]), :] = 1                 # Horizontal
-            texture[int(0.4*size_pattern[0]):int(0.6*size_pattern[0]), int(0.7*size_pattern[1]) + 0*4, :] = 1           # Small vertical
+            raise ValueError("Texture must be provided")
 
         if plot and (nb_wavelengths == 3):
             plt.figure()
@@ -906,6 +875,7 @@ class HSSystem:
 
         texturesize = np.array(texture_torch.shape[0:2])
         
+        # setup screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
@@ -917,7 +887,6 @@ class HSSystem:
         time_start = time.time()
         Is = []
 
-        #shift_value = shift_value.int()
         for wavelength_id, wavelength in enumerate(wavelengths):
             screen.update_texture(texture_torch[..., wavelength_id])
 
@@ -1583,10 +1552,6 @@ class HSSystem:
             wavelength = torch.Tensor([wavelength]).float().to(self.device)
 
             ray = self.sample_rays_pos(wavelength, None, source_pos[0], source_pos[1], 0., d = d)
-            #ray = do.Ray(o = torch.tensor([2.5, 0., 0.]).repeat(2, 1).float(), d = torch.stack((torch.tensor([0., 0.]), torch.tensor([0., 0.]), torch.tensor([1., 1.])), dim=-1), wavelength = wavelength)
-            # ray.o[..., 2] = ray.o[..., 2]-50
-            # ray.d[..., 2] *= -1
-            # print(ray)
             oss = [None for i in range(self.size_system)]
             #print(ray)
 

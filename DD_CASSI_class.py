@@ -210,7 +210,7 @@ class DD_CASSI(HSSystem):
             self.compute_mask_transformation(new_origin, shift, theta_x, theta_y, theta_z, rotation_order=rotation_order)
         
 
-        #self.mask_t[2] += self.mask_d #TODO does that work in all cases ?
+        #self.mask_t[2] += self.mask_d #TODO The best way should be to remove d entirely for the screen, as is done above
 
         self.mask_lens_object = mask_lens_object
 
@@ -232,11 +232,10 @@ class DD_CASSI(HSSystem):
 
         self.mask_index = len(self.system) - (self.mask_index + 1) - 1
         
+        # Create self.mask_R and self.mask_t
         self.compute_mask_transformation(self.mask_origin, self.mask_shift, self.mask_theta[0], self.mask_theta[1], self.mask_theta[2])
 
         self.mask_mts_prepared = True
-
-        
 
 
     def apply_mask(self, z0, rays, valid, R_mask = None, t_mask = None, shading_type = "single", save_pos = False):
@@ -269,7 +268,6 @@ class DD_CASSI(HSSystem):
         texture = torch.from_numpy(self.mask) if not isinstance(self.mask, torch.Tensor) else self.mask
         #texture = texture.clone().rot90(1, [0, 1]).to(self.device)
         
-        #t_mask = torch.Tensor([0., 0., z0]).to(self.device)
         screen = do.Screen(
             do.Transformation(R_mask, t_mask),
             texturesize * self.mask_pixelsize, texture, device=self.device
@@ -289,12 +287,8 @@ class DD_CASSI(HSSystem):
             masked_image = screen.shading(uv, valid_last, lmode = InterpolationMode.nearest)
         elif shading_type == "batch":
             raise NotImplementedError
-            #masked_image = screen.shading_batch(uv, valid_last, lmode = InterpolationMode.nearest)
         elif shading_type == "all":
             raise NotImplementedError
-            #masked_image = screen.shading_all(uv, valid_last, lmode = InterpolationMode.nearest)
-
-
 
         valid_rays = valid_last & torch.tensor((masked_image > 0))
 
@@ -437,11 +431,8 @@ class DD_CASSI(HSSystem):
         for i, lens in enumerate(self.system[::-1]):
             lens_mts_R, lens_mts_t = lens._compute_transformation().R, lens._compute_transformation().t
             if i > 0:
-                #self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = self.system[::-1][i-1].surfaces[-1].d + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
-                #self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = self.system[::-1][i-1].origin[-1] + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
                 self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
             else:
-                #self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = offsets[-1], R=lens_mts_R, t=lens_mts_t)  
                 max_z = lens.d_sensor*torch.cos(lens.theta_y*np.pi/180) + lens.origin[-1] + lens.shift[-1] # Last z coordinate in absolute coordinates
                 self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-1], R=lens_mts_R, t=lens_mts_t)   
 
@@ -461,6 +452,7 @@ class DD_CASSI(HSSystem):
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
         texturesize = np.array(texture_torch.shape[0:2])
 
+        # create a dummy screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
@@ -541,6 +533,7 @@ class DD_CASSI(HSSystem):
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
         texturesize = torch.tensor(texture_torch.shape[0:2], device=self.device)
 
+        # setup screen
         screen = do.Screen(
             do.Transformation(np.eye(3), np.array([0, 0, z0])),
             texturesize * pixelsize, texture_torch, device=self.device
@@ -587,11 +580,7 @@ class DD_CASSI(HSSystem):
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-            print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
+            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape(*np.flip(np.asarray(self.system[0].film_size))) # Flip
             Is.append(I)
         # show image
@@ -708,12 +697,7 @@ class DD_CASSI(HSSystem):
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-            #####print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-            #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
-            # I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0])).flip(2) # Flip
+            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0]))
             Is.append(I)
         # show image
@@ -794,12 +778,7 @@ class DD_CASSI(HSSystem):
         M = big_mask.sum(dim=1) # [nC, N]
         I = I / (M.unsqueeze(0) + 1e-10)
         # reshape data to a 2D image
-        #I = I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0)
-        #####print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-        #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))).permute(1,0), dims = [0])
-        #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims = [0])
-        #I = torch.flip(I.reshape(*np.flip(np.asarray(lenses[0].film_size))), dims=[0, 1])
-        # I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0])).flip(2) # Flip
+        #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
         I = I.reshape((-1, I.shape[1], self.system[0].film_size[1], self.system[0].film_size[0]))
         # show image
         I_rendered = I.permute(0, 2, 3, 1)#.astype(np.uint8)
@@ -901,8 +880,9 @@ class DD_CASSI(HSSystem):
 
         Args:
             symmetry_ax (str, optional): The axis of symmetry. Can be either horizontal, vertical or any. If any, ax_position needs to be a 3D vector. Defaults to "horizontal".
-            ax_position (float, optional): The position of the axis of symmetry. It is a z position if the symmetry is "horizontal" and a
-                                        x position if the symmetry is "vertical". Defaults to 0.
+            ax_position (float, optional): The position of the axis of symmetry. It is a z position if the symmetry is 'horizontal' and a
+                                        x position if the symmetry is 'vertical'. Defaults to 0.
+            ax_normal (np.array, optional): The normal vector of the symmetry axis. Used in symmetry_ax is 'any'. Defaults to np.zeros(3).
         """
 
         ax_normal = np.array(ax_normal) / np.linalg.norm(np.array(ax_normal) + 1e-10)
@@ -1094,15 +1074,10 @@ class DD_CASSI(HSSystem):
                     #        surface_dict['params']['ai'][2] = - surface_dict['params']['ai'][2]
                     
                     if (surface_dict['type'] == "XYPolynomial"):
-                        # for i_ai in range(len(surface_dict['params']['ai'])):
-                        #     surface_dict['params']['ai'][i_ai] = float(np.array([surface_dict['params']['ai'][i_ai]]))
                         if len(surface_dict['params']['ai']) == 3:
                             _, _, coef = compute_euler_angles(basic_dir, mirrored_lens_dir, rotation_order=self.list_rotation_order[lens_id])
                             coef = 2 * int((np.abs(coef).item() > 90.)) - 1
-                            # if np.abs(coef) > 90.:
-                            #     coef = 1
-                            # else:
-                            #     coef = -1
+                            
                             surface_dict['params']['ai'][2] = coef * surface_dict['params']['ai'][2]
                         surface_dict['params']['ai'] = surface_dict['params']['ai'].tolist()
                         #print("ai: ", surface_dict['params']['ai'])
@@ -1118,14 +1093,11 @@ class DD_CASSI(HSSystem):
                 else:
                     new_system_d_sensor.append((np.sign(np.dot(lens_dir, mirrored_lens_dir)) * self.list_d_sensor[lens_id]).item()) #TODO May need a change, as the values between old and new system should be different
                 new_system_r_last.append(self.list_r_last[lens_id])
-                #new_system_film_size.append(self.list_film_size[lens_id])
+                
                 new_system_film_size.append([int(self.list_film_size[lens_id][0]), int(self.list_film_size[lens_id][1])])
 
                 new_system_pixel_size.append(self.list_pixel_size[lens_id])
 
-                # new_system_theta_x.append(-np.sign(mirrored_basic_dir[0])*self.list_theta_x[lens_id])
-                # new_system_theta_y.append(-np.sign(mirrored_basic_dir[1])*self.list_theta_y[lens_id])
-                # new_system_theta_z.append(-np.sign(mirrored_basic_dir[2])*self.list_theta_z[lens_id]) # Because the z axis w.r.t. the origin is reversed
 
                 basic_dir = np.array([0., 0., 1.])
 
@@ -1133,6 +1105,46 @@ class DD_CASSI(HSSystem):
                 mirrored_lens_dir = mirror_direction(lens_dir, ax_normal)
 
                 mirrored_basic_dir = mirror_direction(basic_dir, ax_normal)
+
+                print("")
+                print("Directions: ", mirrored_basic_dir, mirrored_lens_dir)
+                print("Previous angles: ", self.list_theta_x[lens_id], self.list_theta_y[lens_id], self.list_theta_z[lens_id])
+
+                theta_x_, theta_y_, theta_z_ = compute_euler_angles(basic_dir, mirrored_lens_dir, rotation_order=self.list_rotation_order[lens_id])
+
+                theta_z_ = 0.
+
+                print("New angles: ", theta_x_, theta_y_, theta_z_)
+
+                new_system_theta_x.append(theta_x_.item() if isinstance(theta_x_, np.floating) else theta_x_)
+                new_system_theta_y.append(theta_y_.item() if isinstance(theta_y_, np.floating) else theta_y_)
+                new_system_theta_z.append(theta_z_)
+
+
+                new_origin = self.list_origin[lens_id].copy() if self.list_origin[lens_id] is not None else [0., 0., 0.]
+                new_origin = mirror_point(new_origin, ax_position, ax_normal)
+                new_system_origin.append(new_origin.tolist())
+                
+                new_shift = self.list_shift[lens_id].copy() if self.list_shift[lens_id] is not None else [0., 0., 0.]
+                
+                new_shift = (mirrored_basic_dir * new_shift)
+                #new_shift = mirror_point(new_shift, ax_position, ax_normal)
+                new_system_shift.append(new_shift.tolist())
+
+                new_system_rotation_order.append(self.list_rotation_order[lens_id])
+
+                # new_system_theta_x.append(np.rad2deg(np.arctan2(mirrored_lens_dir[2], mirrored_lens_dir[1])))
+                # new_system_theta_y.append(np.rad2deg(np.arctan2(mirrored_lens_dir[2], mirrored_lens_dir[0])))
+                # new_system_theta_z.append(np.rad2deg(np.arctan2(mirrored_lens_dir[1], mirrored_lens_dir[0]))) # Because the z axis w.r.t. the origin is reversed
+
+                # new_system_theta_x.append(coef_rot[0]*self.list_theta_x[lens_id])
+                # new_system_theta_y.append(coef_rot[1]*self.list_theta_y[lens_id])
+                # new_system_theta_z.append(coef_rot[2]*self.list_theta_z[lens_id]) # Because the z axis w.r.t. the origin is reversed
+
+
+                # new_system_theta_x.append(-np.sign(mirrored_basic_dir[0])*self.list_theta_x[lens_id])
+                # new_system_theta_y.append(-np.sign(mirrored_basic_dir[1])*self.list_theta_y[lens_id])
+                # new_system_theta_z.append(-np.sign(mirrored_basic_dir[2])*self.list_theta_z[lens_id]) # Because the z axis w.r.t. the origin is reversed
 
                 # mirrored_basic_dir_12 = mirrored_basic_dir[[1,2]] / (np.linalg.norm(mirrored_basic_dir[[1,2]])) if np.linalg.norm(mirrored_basic_dir[[1,2]]) > 1e-10 else np.array([0., 0.])
                 # mirrored_basic_dir_01 = mirrored_basic_dir[[0,1]] / (np.linalg.norm(mirrored_basic_dir[[0,1]])) if np.linalg.norm(mirrored_basic_dir[[0,1]]) > 1e-10 else np.array([0., 0.])
@@ -1146,11 +1158,7 @@ class DD_CASSI(HSSystem):
                 # dot_02 = np.dot(mirrored_basic_dir_02, mirrored_lens_dir_02) if np.linalg.norm(mirrored_basic_dir_02) > 1e-10 and np.linalg.norm(mirrored_lens_dir_02) > 1e-10 else 1.
                 # dot_01 = np.dot(mirrored_basic_dir_01, mirrored_lens_dir_01) if np.linalg.norm(mirrored_basic_dir_01) > 1e-10 and np.linalg.norm(mirrored_lens_dir_01) > 1e-10 else 1.
                 
-                print("")
-                print("Directions: ", mirrored_basic_dir, mirrored_lens_dir)
-                #print("Dot products: ", dot_12, dot_02, dot_01)
-                #print("Angles: ", np.rad2deg(np.arccos(dot_12)), np.rad2deg(np.arccos(dot_02)), np.rad2deg(np.arccos(dot_01)))
-                print("Previous angles: ", self.list_theta_x[lens_id], self.list_theta_y[lens_id], self.list_theta_z[lens_id])
+                
 
                 # dot_12 = np.dot(mirrored_lens_dir_12, np.array([0., 1.])) if np.linalg.norm(mirrored_lens_dir_12) > 1e-10 else 1.
                 # dot_02 = np.dot(mirrored_lens_dir_02, np.array([0. , 1.])) if np.linalg.norm(mirrored_lens_dir_02) > 1e-10 else 1.
@@ -1199,36 +1207,7 @@ class DD_CASSI(HSSystem):
                 #     theta_x_ = 0.
                 # if theta_z_ == 180.:
                 #     theta_z_ = 180.
-
-                theta_x_, theta_y_, theta_z_ = compute_euler_angles(basic_dir, mirrored_lens_dir, rotation_order=self.list_rotation_order[lens_id])
-
-                theta_z_ = 0.
-
-                print("New angles: ", theta_x_, theta_y_, theta_z_)
-
-                new_system_theta_x.append(theta_x_.item() if isinstance(theta_x_, np.floating) else theta_x_)
-                new_system_theta_y.append(theta_y_.item() if isinstance(theta_y_, np.floating) else theta_y_)
-                new_system_theta_z.append(theta_z_)
-
-                # new_system_theta_x.append(np.rad2deg(np.arctan2(mirrored_lens_dir[2], mirrored_lens_dir[1])))
-                # new_system_theta_y.append(np.rad2deg(np.arctan2(mirrored_lens_dir[2], mirrored_lens_dir[0])))
-                # new_system_theta_z.append(np.rad2deg(np.arctan2(mirrored_lens_dir[1], mirrored_lens_dir[0]))) # Because the z axis w.r.t. the origin is reversed
-
-                # new_system_theta_x.append(coef_rot[0]*self.list_theta_x[lens_id])
-                # new_system_theta_y.append(coef_rot[1]*self.list_theta_y[lens_id])
-                # new_system_theta_z.append(coef_rot[2]*self.list_theta_z[lens_id]) # Because the z axis w.r.t. the origin is reversed
-
-                new_origin = self.list_origin[lens_id].copy() if self.list_origin[lens_id] is not None else [0., 0., 0.]
-                new_origin = mirror_point(new_origin, ax_position, ax_normal)
-                new_system_origin.append(new_origin.tolist())
                 
-                new_shift = self.list_shift[lens_id].copy() if self.list_shift[lens_id] is not None else [0., 0., 0.]
-                
-                new_shift = (mirrored_basic_dir * new_shift)
-                #new_shift = mirror_point(new_shift, ax_position, ax_normal)
-                new_system_shift.append(new_shift.tolist())
-
-                new_system_rotation_order.append(self.list_rotation_order[lens_id])
 
         else:
             raise NotImplementedError("Symmetry axis not recognized")
