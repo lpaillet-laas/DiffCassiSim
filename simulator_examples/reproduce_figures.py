@@ -276,7 +276,7 @@ elif (figure_number == 3) or (figure_number == 16):
     ax.set_xticks(torch.arange(450, 650, 35).tolist() + [650])
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
-    plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/disp_w_lin.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+    plt.savefig("./disp_w_lin.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
 
     
 
@@ -291,7 +291,7 @@ elif (figure_number == 3) or (figure_number == 16):
     ax.set_ylim(-120, 50)
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
-    plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/ap_nl.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+    plt.savefig("./ap_nl.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     
 
     fig = plt.figure(figsize=(32/2.5, 18/2.5), dpi=60*2.5)
@@ -305,7 +305,7 @@ elif (figure_number == 3) or (figure_number == 16):
     ax.set_ylim(-120, 50)
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
-    plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/sp_nl.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+    plt.savefig("./sp_nl.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
 
     fig = plt.figure(figsize=(32/2.5, 18/2.5), dpi=60*2.5)
     ax = fig.add_subplot(111)
@@ -319,7 +319,7 @@ elif (figure_number == 3) or (figure_number == 16):
     ax.set_ylim(-120, 50)
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
-    plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/both.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+    plt.savefig("./both.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
 
 
     plt.show()
@@ -610,9 +610,9 @@ elif (figure_number == 8) or (figure_number == 15):
     image = sp_system.render(wavelengths=wavelengths_acq, nb_rays=nb_rays, z0=z0,
                     texture=texture_acq, numerical_aperture=0.05, plot=False).flip(0)
 
-    # torch.save(image, f"/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fig14_ov{oversample_acq}_supp.pt")
+    # torch.save(image, f"./fig14_ov{oversample_acq}_supp.pt")
 
-    # image = torch.load(f"/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fig14_ov{oversample_acq}_supp.pt")
+    # image = torch.load(f"./fig14_ov{oversample_acq}_supp.pt")
 
     colors = [(0, 0, 0), (0.45, 0.45, 0.45), (0.75, 0.75, 0.75), (0.9, 0.9, 0.9), (1, 1, 1)]
     custom_gray_cmap = LinearSegmentedColormap.from_list("Custom", colors, N=2000)
@@ -624,7 +624,7 @@ elif (figure_number == 8) or (figure_number == 15):
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
     plt.imshow(image.sum(-1), cmap=custom_gray_cmap)
-    plt.savefig(f"/home/lpaillet/Téléchargements/figure6_acq_{int(28*oversample_acq)}.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+    plt.savefig(f"./figure6_acq_{int(28*oversample_acq)}.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     if sp_system.save_dir is not None:
         plt.savefig(sp_system.save_dir + "acquisition_rendering.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
 
@@ -674,7 +674,7 @@ elif (figure_number == 8) or (figure_number == 15):
     ax.tick_params(axis='both', which='major', labelsize=90, width=5, length=20)
     ax.yaxis.set_label_position("right")
     ax.yaxis.tick_right()
-    sp_system.save_dir = "/home/lpaillet/Téléchargements/"
+    sp_system.save_dir = "./"
     if sp_system.save_dir is not None:
         plt.savefig(sp_system.save_dir + f"figure6_spectrum_{int(28*oversample_acq)}.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
         #plt.savefig(sp_system.save_dir + "spectrum_comparison.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
@@ -689,7 +689,7 @@ elif (figure_number == 8) or (figure_number == 15):
     # ax.tick_params(axis='both', which='major', labelsize=90, width=5, length=20)
     # ax.yaxis.set_label_position("right")
     # ax.yaxis.tick_right()
-    # sp_system.save_dir = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/images_round1/"
+    # sp_system.save_dir = "./"
     # if sp_system.save_dir is not None:
     #     plt.savefig(sp_system.save_dir + f"figure6_spectrum_{int(28*oversample_acq)}_1.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     #     #plt.savefig(sp_system.save_dir + "spectrum_comparison.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
@@ -704,7 +704,7 @@ elif (figure_number == 8) or (figure_number == 15):
     # ax.tick_params(axis='both', which='major', labelsize=90, width=5, length=20)
     # ax.yaxis.set_label_position("right")
     # ax.yaxis.tick_right()
-    # sp_system.save_dir = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/images_round1/"
+    # sp_system.save_dir = "./"
     # if sp_system.save_dir is not None:
     #     plt.savefig(sp_system.save_dir + f"figure6_spectrum_{int(28*oversample_acq)}_2.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
         
@@ -718,7 +718,7 @@ elif (figure_number == 8) or (figure_number == 15):
     # ax.tick_params(axis='both', which='major', labelsize=90, width=5, length=20)
     # ax.yaxis.set_label_position("right")
     # ax.yaxis.tick_right()
-    # sp_system.save_dir = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/images_round1/"
+    # sp_system.save_dir = "./"
     # if sp_system.save_dir is not None:
     #     plt.savefig(sp_system.save_dir + f"figure6_spectrum_{int(28*oversample_acq)}_3.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     
@@ -855,11 +855,11 @@ elif figure_number == 20:
     # plt.show()
 
     if pos == 0:
-        torch.save(FWHMs, "/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_single.pt")
+        torch.save(FWHMs, "./FWHM_single.pt")
     elif pos == 1:
-        torch.save(FWHMs, "/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_single_top.pt")
+        torch.save(FWHMs, "./FWHM_single_top.pt")
     elif pos == 2:
-        torch.save(FWHMs, "/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_single_right.pt")
+        torch.save(FWHMs, "./FWHM_single_right.pt")
     plt.rcParams['text.usetex'] = True
     plt.rcParams['font.family'] = 'serif'
     params = {'axes.labelsize': 90/2.5,'axes.titlesize':90/2.5, 'legend.fontsize': 90/2.5, 'xtick.labelsize': 70/2.5, 'ytick.labelsize': 70/2.5}
@@ -875,11 +875,11 @@ elif figure_number == 20:
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
     if pos == 0:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_sp.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_sp.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     elif pos == 1:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_sp_top.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig(".fwhm_sp_top.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     elif pos == 2:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_sp_right.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_sp_right.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     plt.show()
 
     ap_system = HSSystem(config_file_path="../system_specs/system_amici.yml", device = device)
@@ -977,11 +977,11 @@ elif figure_number == 20:
     # plt.show()
 
     if pos == 0:
-        torch.save(FWHMs, "/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_amici.pt")
+        torch.save(FWHMs, "./FWHM_amici.pt")
     elif pos == 1:
-        torch.save(FWHMs, "/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_amici_top.pt")
+        torch.save(FWHMs, "./FWHM_amici_top.pt")
     elif pos == 2:
-        torch.save(FWHMs, "/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_amici_right.pt")
+        torch.save(FWHMs, "./FWHM_amici_right.pt")
     plt.rcParams['text.usetex'] = True
     plt.rcParams['font.family'] = 'serif'
     params = {'axes.labelsize': 90/2.5,'axes.titlesize':90/2.5, 'legend.fontsize': 90/2.5, 'xtick.labelsize': 70/2.5, 'ytick.labelsize': 70/2.5}
@@ -997,23 +997,23 @@ elif figure_number == 20:
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
     if pos == 0:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_ap.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_ap.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     elif pos == 1:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_ap_top.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_ap_top.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     elif pos == 2:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_ap_right.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_ap_right.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     plt.show()
 
     wavelengths = torch.linspace(450, 650, 28)
     if pos == 0:
-        FWHMs_single = torch.load("/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_single.pt")
-        FWHMs_amici = torch.load("/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_amici.pt")
+        FWHMs_single = torch.load("./FWHM_single.pt")
+        FWHMs_amici = torch.load("./FWHM_amici.pt")
     elif pos == 1:
-        FWHMs_single = torch.load("/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_single_top.pt")
-        FWHMs_amici = torch.load("/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_amici_top.pt")
+        FWHMs_single = torch.load("./FWHM_single_top.pt")
+        FWHMs_amici = torch.load("./FWHM_amici_top.pt")
     elif pos == 2:
-        FWHMs_single = torch.load("/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_single_right.pt")
-        FWHMs_amici = torch.load("/home/lpaillet/Documents/Codes/DiffCassiSim/simulator_examples/FWHM_amici_right.pt")
+        FWHMs_single = torch.load("./FWHM_single_right.pt")
+        FWHMs_amici = torch.load("./FWHM_amici_right.pt")
 
     plt.rcParams['text.usetex'] = True
     plt.rcParams['font.family'] = 'serif'
@@ -1031,9 +1031,9 @@ elif figure_number == 20:
     ax.tick_params(axis='both', which='major', labelsize=90/2.5, width=5/2.5, length=20/2.5)
     plt.grid("on")
     if pos == 0:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_full.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_full.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     elif pos == 1:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_full_top.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_full_top.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     elif pos == 2:
-        plt.savefig("/home/lpaillet/Documents/Codes/article-distorsions-dont-matter/round1/fwhm_full_right.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig("./fwhm_full_right.svg", format='svg', bbox_inches = 'tight', pad_inches = 0)
     plt.show()
