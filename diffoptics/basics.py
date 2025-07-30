@@ -65,11 +65,11 @@ class Transformation(PrettyPrinter):
         if torch.is_tensor(R):
             self.R = R
         else:
-            self.R = torch.Tensor(R)
+            self.R = torch.tensor(R, dtype=torch.float32)
         if torch.is_tensor(t):
             self.t = t
         else:
-            self.t = torch.Tensor(t)
+            self.t = torch.tensor(t, dtype = torch.float32)
 
     def transform_point(self, o):
         return torch.squeeze(self.R @ o[..., None]) + self.t
@@ -80,10 +80,11 @@ class Transformation(PrettyPrinter):
     def transform_ray(self, ray):
         o = self.transform_point(ray.o)
         d = self.transform_vector(ray.d)
-        if o.is_cuda:
-            return Ray(o, d, ray.wavelength, device=torch.device('cuda'))
-        else:
-            return Ray(o, d, ray.wavelength)
+        # if o.is_cuda:
+        #     return Ray(o, d, ray.wavelength, device=torch.device('cuda'))
+        # else:
+        #     return Ray(o, d, ray.wavelength)
+        return Ray(o, d, ray.wavelength, device=o.device if not hasattr(o, 'value') else 'cuda:0')
 
     def inverse(self):
         RT = self.R.T
@@ -125,7 +126,7 @@ class Sampler(PrettyPrinter):
         # apply concentric mapping to point
         eps = np.finfo(float).eps
         
-        if type(x) is torch.Tensor and type(y) is torch.Tensor:
+        if type(x) is torch.tensor and type(y) is torch.tensor:
             cond = torch.abs(x) > torch.abs(y)
             r = torch.where(cond, x, y)
             theta = torch.where(cond,
@@ -234,12 +235,22 @@ class Material(PrettyPrinter):
 
             # Added from optical glass
             "n-sk2":     [1.60738,  56.65, 1.28189012,0.257738258,0.96818604,0.0072719164,0.0242823527,110.377773],
+
+            # Other
+            "h-zk9b": [1.620410, 60.339343, 0.874918734, 0.7096273, 1.09453882, 0.00373965378, 0.0163972089, 100.204324],
+            "h-qk3l": [1.487490, 70.440487, 0.601737491, 0.858737004, 0.586761501, 0.012574974, 92.3325663, 0.002687509],
+            "h-zlaf66": [1.801000, 34.966919, 0.233018785, 1.90660392, 1.37147086, 0.0537435377, 0.0114336559, 110.630887],
+            "h-zf11": [1.698940, 30.050450, 1.59868051, 0.189448887, 1.26870155, 0.0126057844, 0.0617894718, 121.376823],
+            "h-lak53b": [1.755000, 52.322058, 1.03141220, 0.985282193, 1.17066017, 0.00395421648, 0.0186863118, 81.1326753],
+            "h-zlaf50e": [1.804000, 46.574487, 1.22239213, 0.952859931, 1.37994067, 0.00445444481, 0.0229973985, 99.1991267],
+            "h-zf52": [1.846660, 23.784497, 0.409982615, 2.37517176, 1.83913582, 0.0621421199, 185.055134, 0.0136093459],
+            "noa61": [1.559744, 42.435209, 2.363906250, 0.02549313400, -0.000003499330000, 0., -0.0005802350000, 0.00000004454040000],
         }
         self.A, self.B = self._lookup_material()
 
     def ior(self, wavelength):
         """Computes index of refraction of a given wavelength (in [nm])"""
-        if self.name in ['air', 'vacuum', 'occluder', 'baf10', 'sk1', 'sk16', 'ssk4', 'b270', 'polycarb']:    
+        if (self.name in ['air', 'vacuum', 'occluder', 'baf10', 'sk1', 'sk16', 'ssk4', 'b270', 'polycarb', 'other']) or len(self.MATERIAL_TABLE[self.name]) < 8:    
             return self.A + self.B / wavelength**2
         else:
             #return self.A + self.B / wavelength**2
@@ -264,6 +275,8 @@ class Material(PrettyPrinter):
         out = self.MATERIAL_TABLE.get(self.name)
         if isinstance(out, list):
             n, V = out[:2]
+            self.n = n
+            self.V = V
             if len(out) > 2:
                 self.B1, self.B2, self.B3, self.C1, self.C2, self.C3 = out[2:]
         elif out is None:
@@ -323,14 +336,15 @@ def rodrigues_rotation_matrix(k, theta): # theta: [rad]
     """
     # cross-product matrix
     kx, ky, kz = k[0], k[1], k[2]
-    K = torch.Tensor([
+    K = torch.tensor([
         [  0, -kz,  ky],
         [ kz,   0, -kx],
         [-ky,  kx,   0]
-    ]).to(k.device)
+    ], dtype = torch.float32, device = theta.device if not hasattr(theta, 'value') else 'cuda:0')
     if not torch.is_tensor(theta):
-        theta = torch.Tensor(np.asarray(theta)).to(k.device)
-    return torch.eye(3, device=k.device) + torch.sin(theta) * K + (1 - torch.cos(theta)) * K @ K
+        if isinstance(theta, np.ndarray):
+            theta = torch.tensor(np.asarray(theta), dtype = torch.float32, device=theta.device)
+    return torch.eye(3, device=theta.device if not hasattr(theta, 'value') else 'cuda:0') + torch.sin(theta) * K + (1 - torch.cos(theta)) * K @ K
 
 def set_axes_equal(ax, scale=np.ones(3)):
     """
@@ -354,7 +368,7 @@ def generate_test_rays():
 
     o = np.array([3,4,-200])
     o = np.tile(o[None, None, ...], [*filmsize, 1])
-    o = torch.Tensor(o)
+    o = torch.tensor(o, dtype = torch.float32)
     
     dx = 0.1 * torch.rand(*filmsize)
     dy = 0.1 * torch.rand(*filmsize)
@@ -366,7 +380,7 @@ def generate_test_rays():
 def generate_test_transformation():
     k = np.random.rand(3)
     k = k / np.sqrt(np.sum(k**2))
-    k = torch.Tensor(k)
+    k = torch.tensor(k, dtype = torch.float32)
     theta = 1 # [rad]
     R = rodrigues_rotation_matrix(k, theta)
     t = np.random.rand(3)

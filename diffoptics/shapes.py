@@ -33,9 +33,9 @@ class Screen(Endpoint):
     Local frame centers at [-w, w]/2 x [-h, h]/2.
     """
     def __init__(self, transformation, size, texture, device=torch.device('cpu')):
-        self.size = torch.tensor(np.float32(size), device=device)  # screen dimension [mm]
+        self.size = torch.tensor(size, dtype=torch.float32, device=device) if not hasattr(size[0], 'value') else torch.tensor([size[0].value, size[1].value], dtype=torch.float32, device=device)  # screen dimension [mm]
         self.halfsize  = self.size/2                # screen half-dimension [mm]
-        self.texture_shift = torch.zeros(2)         # screen image shift [mm]
+        self.texture_shift = torch.zeros(2, dtype=torch.float32, device=device)         # screen image shift [mm]
         self.device = device
         if len(texture.shape) == 2 or len(texture.shape) == 3:
             self.update_texture(texture)
@@ -46,15 +46,15 @@ class Screen(Endpoint):
 
     def update_texture(self, texture: torch.Tensor):
         self.texture = texture # screen image [h, w]
-        self.texturesize = torch.Tensor(np.array(texture.shape[0:2])).long().to(self.device) # screen image dimension [pixel]
+        self.texturesize = torch.tensor(np.array(texture.shape[0:2]), device=self.device, dtype=torch.int64) # screen image dimension [pixel]
 
     def update_texture_batch(self, texture: torch.Tensor):
         self.texture = texture # screen image [batch_size, h, w]
-        self.texturesize = torch.Tensor(np.array(texture.shape[1:3])).long().to(self.device) # screen image dimension [pixel]
+        self.texturesize = torch.tensor(np.array(texture.shape[1:3]), device=self.device, dtype=torch.int64) # screen image dimension [pixel]
 
     def update_texture_all(self, texture: torch.Tensor):
         self.texture = texture # screen image [batch_size, nC, h, w]
-        self.texturesize = torch.Tensor(np.array(texture.shape[2:4])).long().to(self.device) # screen image dimension [pixel]
+        self.texturesize = torch.tensor(np.array(texture.shape[2:4]), device=self.device, dtype=torch.int64) # screen image dimension [pixel]
         
     def intersect(self, ray):
         ray_in = self.to_object.transform_ray(ray)
@@ -78,9 +78,8 @@ class Screen(Endpoint):
         return local, uv, valid
 
     def shading(self, uv, valid, bmode=BoundaryMode.replicate, lmode=InterpolationMode.linear):
-        # p = uv * (self.texturesize[None, None, ...]-1)
         p = uv * (self.texturesize-1)
-        p_floor = torch.floor(p).long()
+        p_floor = torch.floor(p).int()
 
         def tex(x, y):
             """
@@ -89,8 +88,12 @@ class Screen(Endpoint):
             if bmode is BoundaryMode.zero:
                 raise NotImplementedError()
             elif bmode is BoundaryMode.replicate:
-                x = torch.clamp(x, min=0, max=self.texturesize[0].item()-1)
-                y = torch.clamp(y, min=0, max=self.texturesize[1].item()-1)
+                if hasattr(x, 'value') and hasattr(y, 'value'):
+                    x = torch.clamp(x, min=torch.tensor(0, dtype=torch.int64), max=self.texturesize[0].item()-1)
+                    y = torch.clamp(y, min=torch.tensor(0, dtype=torch.int64), max=self.texturesize[1].item()-1)
+                else:
+                    x = torch.clamp(x, min=0, max=self.texturesize[0].item()-1)
+                    y = torch.clamp(y, min=0, max=self.texturesize[1].item()-1)
             elif bmode is BoundaryMode.symmetric:
                 raise NotImplementedError()
             elif bmode is BoundaryMode.periodic:
@@ -114,18 +117,18 @@ class Screen(Endpoint):
                 w1[...,0] * (w0[...,1] * s10 + w1[...,1] * s11)
             )
         
-        # val = val * valid
-        # val[torch.isnan(val)] = 0.0
-
         # TODO: should be added;
         # but might cause RuntimeError: Function 'MulBackward0' returned nan values in its 0th output.
-        val[~valid] = 0.0
+        if hasattr(val, 'value'):
+            val[~valid.flatten()] = 0.0
+        else:
+            val[~valid] = 0.0
         return val
     
     def shading_batch(self, uv, valid, bmode=BoundaryMode.replicate, lmode=InterpolationMode.linear):
         # p = uv * (self.texturesize[None, None, ...]-1)
         p = uv * (self.texturesize-1) # [N, 2]
-        p_floor = torch.floor(p).long()
+        p_floor = torch.floor(p).int()
 
         def tex_batch(x, y):
             """
@@ -134,8 +137,12 @@ class Screen(Endpoint):
             if bmode is BoundaryMode.zero:
                 raise NotImplementedError()
             elif bmode is BoundaryMode.replicate:
-                x = torch.clamp(x, min=0, max=self.texturesize[0].item()-1)
-                y = torch.clamp(y, min=0, max=self.texturesize[1].item()-1)
+                if hasattr(x, 'value') and hasattr(y, 'value'):
+                    x = torch.clamp(x, min=torch.tensor(0, dtype=torch.int32), max=self.texturesize[0]-1)
+                    y = torch.clamp(y, min=torch.tensor(0, dtype=torch.int32), max=self.texturesize[1]-1)
+                else:
+                    x = torch.clamp(x, min=0, max=self.texturesize[0].item()-1)
+                    y = torch.clamp(y, min=0, max=self.texturesize[1].item()-1)
             elif bmode is BoundaryMode.symmetric:
                 raise NotImplementedError()
             elif bmode is BoundaryMode.periodic:
@@ -159,21 +166,20 @@ class Screen(Endpoint):
                 w1[...,0] * (w0[...,1] * s10 + w1[...,1] * s11)
             )
         
-        # val = val * valid
-        # val[torch.isnan(val)] = 0.0
-
         # TODO: should be added;
         # but might cause RuntimeError: Function 'MulBackward0' returned nan values in its 0th output.
-        val[:, ~valid] = 0.0
+        if hasattr(val, 'value'):
+            val = val * valid.flatten()[None, :]
+        else:
+            val[:, ~valid] = 0.0
         return val
     
     def shading_all(self, uv, valid, bmode=BoundaryMode.replicate, lmode=InterpolationMode.linear):
         # uv shape [nC, nb_rays, N, 2]
         # valid shape [nC, nb_rays, N]
         # texture shape [batch_size, nC, h, w]
-        # p = uv * (self.texturesize[None, None, ...]-1)
         p = uv * (self.texturesize-1) # [nC, nb_rays, N, 2]
-        p_floor = torch.floor(p).long()
+        p_floor = torch.floor(p).int()
 
         def tex_all(p):
             """
@@ -182,8 +188,13 @@ class Screen(Endpoint):
             if bmode is BoundaryMode.zero:
                 raise NotImplementedError()
             elif bmode is BoundaryMode.replicate:
-                p[..., 0] = torch.clamp(p[..., 0], min=0, max=self.texturesize[0].item()-1)
-                p[..., 1] = torch.clamp(p[..., 1], min=0, max=self.texturesize[1].item()-1)
+                if hasattr(p, 'value'):
+                    p[..., 0] = torch.clamp(p[..., 0], min=torch.tensor(0, dtype=torch.int64), max=self.texturesize[0].item()-1)
+                    p[..., 1] = torch.clamp(p[..., 1], min=torch.tensor(0, dtype=torch.int64), max=self.texturesize[1].item()-1)
+                else:
+                    p[..., 0] = torch.clamp(p[..., 0], min=0, max=self.texturesize[0].item()-1)
+                    p[..., 1] = torch.clamp(p[..., 1], min=0, max=self.texturesize[1].item()-1)
+                
             elif bmode is BoundaryMode.symmetric:
                 raise NotImplementedError()
             elif bmode is BoundaryMode.periodic:
@@ -219,12 +230,14 @@ class Screen(Endpoint):
                 w0[...,0] * (w0[...,1] * s00 + w1[...,1] * s01) + 
                 w1[...,0] * (w0[...,1] * s10 + w1[...,1] * s11)
             ) # [batchsize, nC, nb_rays, N]
-        # val = val * valid
-        # val[torch.isnan(val)] = 0.0
 
         # TODO: should be added;
         # but might cause RuntimeError: Function 'MulBackward0' returned nan values in its 0th output.
-        val[~valid.unsqueeze(0).expand(self.texture.shape[0], -1, -1, -1)] = 0.0
+        
+        if hasattr(val, 'value'):
+            val[~valid.unsqueeze(0).expand(self.texture.shape[0], -1, -1, -1)] = 0.0
+        else:
+            val[~valid.unsqueeze(0).expand(self.texture.shape[0], -1, -1, -1)] = 0.0
         return val # [batchsize, nC, nb_rays, N]
 
     def draw_points(self, ax, options, seq=range(3)):

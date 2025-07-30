@@ -424,8 +424,9 @@ class ReconstructionCASSI(L.LightningModule):
 
         texture = batch.permute(0, 2, 3, 1) # batchsize x H x W x nC
 
-        texture = torch.mul(texture, self.mask[None, :, :, None])
+        texture = torch.mul(texture, self.mask[None, :, :, None]) # Coded scene
 
+        # Spectrally oversample the texture
         texture = torch.nn.functional.interpolate(texture, scale_factor=(1, self.oversample), mode='bilinear', align_corners=True)
 
         time_start = time.time()
@@ -463,16 +464,16 @@ class ReconstructionCASSI(L.LightningModule):
         batch_acq = batch_acq.sum(-1)
         self.acq = batch_acq
         if self.net_model_name == 'dgsmp':
-            batch_acq = batch_acq
+            batch_acq = batch_acq / 28 * 2
         elif self.net_model_name == "dwmt":
-            batch_acq = batch_acq / batch_acq.shape[1] * 2
+            batch_acq = batch_acq / 28 * 2
             batch_acq = shift_back(batch_acq, self.pixel_dispersed_28, self.mapping_cube)[:, :, :256, 256:]
         elif self.net_model_name == 'padut':
             batch_acq = batch_acq
         elif self.net_model_name == 'duf':
-            batch_acq = batch_acq
+            batch_acq = batch_acq / 28 * 2
         elif self.net_model_name == 'mst':
-            batch_acq = batch_acq / batch_acq.shape[1] * 2
+            batch_acq = batch_acq / 28 * 2
             batch_acq = shift_back(batch_acq, self.pixel_dispersed_28, self.mapping_cube)#[:, :, :256, 256:]
         elif 'dauhst' in self.net_model_name:
             batch_acq = batch_acq

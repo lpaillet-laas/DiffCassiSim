@@ -24,19 +24,6 @@ d_R_lens = 8.652                                    # 1/2*Height of the lenses (
 d_R_prism = 12.0                                    # 1/2*Height of the prism (in mm)
 angle = 53.4/2                                      # Angle of the prism
 
-d_x1 = 1.767909                                     # Abscissa of the foot of the first curvature
-d_x2 = 4.531195                                     # Abscissa of the foot of the second curvature
-d_x3 = 8.651783                                     # Abscissa of the foot of the third curvature
-
-curv_x1 = 0.0                                       # Abscissa of the first curvature midpoint
-curv_x2 = 7                                         # Abscissa of the second curvature midpoint
-curv_x3 = 9.5                                       # Abscissa of the third curvature midpoint
-
-x1_e = d_x1                                         # Distance between the curvature midpoint and the foot of the first curvature
-x2_e = 7-d_x2                                       # Distance between the curvature midpoint and the foot of the second curvature
-x3_e = 9.5-d_x3                                     # Distance between the curvature midpoint and the foot of the third curvature
-d_length = curv_x3 - curv_x1                        # Length of the lens
-
 d_H = d_R_prism*2                                   # Height of the prism
 d_prism_length = 2*d_H*np.tan(angle*np.pi/180)      # Length of the prism
 
@@ -118,10 +105,8 @@ angle_misalign_prism = 0.0
 d_tilt_angle_final = 5.100 - angle4
 d_tilt_angle_final += 0.404
 #d_tilt_angle_final = 0.409 - d_tilt_angle_final
-d_tilt_angle_final *= 1
 
-
-d_shift_value_x = -0.353*0.1 - 0.0015
+d_shift_value_x = -0.0353 - 0.0015
 d_shift_value_y = 0.0
 if __name__ == '__main__':
 
@@ -143,7 +128,7 @@ if __name__ == '__main__':
     # - 'optimize_psf_zemax': Manually optimize the distance of the sensor and the angle of the system to match Zemax system.
     # - 'compare_psf_zemax': Compare the PSF of the system with Zemax.
 
-    usecase = 'spot'
+    usecase = 'render'
 
     oversample = 4
     
@@ -156,7 +141,9 @@ if __name__ == '__main__':
                      d_back_F + optimized_lens_shift]
     list_r_last = [d_R_prism, d_R_prism, d_R_prism]
 
-    list_film_size = [[612, 512] for i in range(3)] # Pixel x, Pixel y
+    # list_film_size = [[612//(512/96), 512//(512/96)] for i in range(3)] # Pixel x, Pixel y
+    # list_pixel_size = [512/96*10e-3]*3
+    list_film_size = [[612, 512] for i in range(3)]
     list_pixel_size = [10e-3]*3
     list_theta_y = [0., 0., d_tilt_angle_final]
     list_theta_x = [0., angle_misalign_prism, 0.]
@@ -177,9 +164,12 @@ if __name__ == '__main__':
     #lens_group.update_system()
     #lens_group.system = [lens_group.system[0]]
     #lens_group.size_system = 1
+
+    lens_group = HSSystem(config_file_path = '../system_specs/system_256_amici.yml', device='cpu')
+    print("Pixels: ", lens_group.central_positions_wavelengths(torch.linspace(450, 650, 28))[1][:, 1] - lens_group.central_positions_wavelengths(torch.linspace(450, 650, 28))[1][:, 1].min())
     
     #print(lens_group.pixel_dispersed)
-    lens_group.combined_plot_setup()
+    lens_group.plot_setup2D()
 
     if usecase in ['psf', 'spot']:   
         lens_group.system[0].d_sensor = d_back_F + d_length + 0.5  # For plotting purposes
@@ -251,7 +241,7 @@ if __name__ == '__main__':
         """
         Compare the spot diagram with Zemax.
         """
-        lens_group.compare_spot_zemax(path_compare='/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/amici_prism_aligned/')
+        lens_group.compare_spot_zemax(path_compare='./data_zemax/amici_prism_aligned/')
 
     elif usecase == 'mapping':
         """
@@ -544,7 +534,7 @@ if __name__ == '__main__':
         source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
         w_list = [450.0, 520., 650.]
 
-        file_name = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/AMICI/ray_positions_wavelength_W1_field_F1.h5"
+        file_name = "./data_zemax/amici_prism_aligned/ray_positions_wavelength_W1_field_F1.h5"
 
         params = [[source_pos_list[i], w_list[j], extract_positions(file_name.replace('W1', f'W{j+1}').replace('F1', f'F{i+1}'))]
                   for i in range(len(source_pos_list)) for j in range(len(w_list))]
@@ -597,7 +587,7 @@ if __name__ == '__main__':
         source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
         w_list = [450.0, 520., 650.]
 
-        file_name = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/amici_prism_aligned/ray_positions_wavelength_W1_field_F1.txt"
+        file_name = "./data_zemax/amici_prism_aligned/ray_positions_wavelength_W1_field_F1.txt"
 
         depth_list = torch.from_numpy(np.arange(-2., 2., 0.01))
         angle_list = torch.from_numpy(np.arange(5, 50, 2))
@@ -643,7 +633,7 @@ if __name__ == '__main__':
         source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
         w_list = [450., 520., 650.]
 
-        file_name = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/amici_prism_aligned/ray_positions_wavelength_W1_field_F1.txt"
+        file_name = "./data_zemax/amici_prism_aligned/ray_positions_wavelength_W1_field_F1.txt"
         ps = extract_positions(file_name)
         ps = torch.stack(ps, dim=-1).float()
         plt.scatter(ps[..., 1], ps[..., 0], s=1)

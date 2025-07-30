@@ -134,7 +134,7 @@ parameters_break_materials = ['air', 'air', 'air']
 angle_prism_y = - 19.680
 d_tilt_angle_final_y = angle_prism_y - 19.383
 
-angle_prism_x = 5.0 #*1/10
+angle_prism_x = 5.
 prism_edge = torch.tensor([0., 0., 2*d_F], dtype=torch.float32)
 prism_center = torch.tensor([0., 0., 2*d_F + d_prism_length/2], dtype=torch.float32) # No rotation for now
 prism_center = prism_edge
@@ -152,7 +152,7 @@ d_shift_value_x = -0.017        #/np.cos((90+d_tilt_angle_final)*np.pi/180)  # S
 d_shift_value_y = 0.0
 d_shift_value_z = 0.0
 
-d_shift_value_break_x = (0.011*np.sin((d_tilt_angle_final_y)*np.pi/180).item() + 0.024)
+d_shift_value_break_x = (0.011*np.sin((d_tilt_angle_final_y)*np.pi/180).item() + 0.024) - 0.5*(angle_prism_x - 5.0 if angle_prism_x > 5.0 else 0.)/5.0
 d_shift_value_break_z = (0.011*np.cos((d_tilt_angle_final_y)*np.pi/180).item() + 0.2)
 
 if __name__ == '__main__':
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     # - 'optimize_psf_zemax': Manually optimize the distance of the sensor and the angle of the system to match Zemax system.
     # - 'compare_psf_zemax': Compare the PSF of the system with Zemax.
 
-    usecase = 'spot'
+    usecase = 'render'
 
 
     oversample = 1
@@ -193,7 +193,8 @@ if __name__ == '__main__':
                      d_back_F + optimized_lens_shift]
     list_r_last = [d_R_prism, d_R_prism, d_R_prism, d_R_prism]
 
-    list_film_size = [[680, 560] for i in range(4)]  
+    list_film_size = [[680, 560] for i in range(4)] if angle_prism_x <= 7.5 else [[680, 600] for i in range(4)] 
+    #list_film_size = [[680, 600] for i in range(4)]  
     list_pixel_size = [10e-3]*4
     list_theta_y = [0., angle_prism_y, d_tilt_angle_final_y, d_tilt_angle_final_y]
     list_theta_x = [0., angle_prism_x, 0., 0.]
@@ -208,17 +209,19 @@ if __name__ == '__main__':
                         list_theta_y=list_theta_y, list_theta_x=list_theta_x, list_theta_z=list_theta_z,
                         list_origin=list_origin, list_shift=list_shift, list_rotation_order=list_rotation_order,
                         wavelengths = system_wavelengths,
-                        device=device, save_dir="../system_comparison_with_zemax/single_prism_misaligned/images/")
+                        device=device, save_dir=None)
     
     prism = lens_group.system[1]
 
-    lens_group.export_system("system_singlemis.yml")
+    lens_group.device = 'cuda'
+    #lens_group.export_system(f"system_singlemis{angle_prism_x if (abs(round(angle_prism_x)-angle_prism_x) > 1e-4) else round(angle_prism_x)}.yml")
+    lens_group.device = 'cpu'
     #lens_group.d_subsystems = torch.tensor([0, 0, 0])
     #lens_group.update_system()
     #lens_group.system = [lens_group.system[0]]
     #lens_group.size_system = 1
-
-    lens_group.combined_plot_setup()
+    print(lens_group.central_positions_wavelengths(torch.tensor([520.])))
+    lens_group.plot_setup2D()
 
     if usecase in ['psf', 'spot']:   
         lens_group.system[0].d_sensor = d_back_F + d_length + 0.5  # For plotting purposes
@@ -417,7 +420,7 @@ if __name__ == '__main__':
         """
         Compare the spot diagram with Zemax.
         """
-        lens_group.compare_spot_zemax(path_compare='/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/single_prism_misaligned_5deg_delta_beta_c/')
+        lens_group.compare_spot_zemax(path_compare='./data_zemax/single_prism_misaligned/')
         
     elif usecase == 'mapping':
         """
@@ -497,9 +500,17 @@ if __name__ == '__main__':
         print("z0: ", z0)
         #offsets = -d_R + d_x1
         image = lens_group.render(wavelengths=wavelengths, nb_rays=nb_rays, z0=z0,
-                        texture=texture, numerical_aperture=0.05, plot=True)
+                        texture=texture, numerical_aperture=0.05, plot=False)
         
-        torch.save(image, f'test_n{nb_rays}_ov{int(len(wavelengths)//28)}.pt')
+        image = image.flip(0)
+        plt.figure()
+        if len(wavelengths) == 3 or len(wavelengths) == 1:
+            plt.imshow(image.flip(2).cpu().numpy())
+        else:
+            plt.imshow(image[:,:,0].cpu().numpy())
+        plt.show()
+        
+        #torch.save(image, f'test_n{nb_rays}_ov{int(len(wavelengths)//28)}.pt')
 
     elif usecase == 'render_lots':
         """
@@ -668,7 +679,7 @@ if __name__ == '__main__':
         source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
         w_list = [450.0, 520., 650.]
 
-        file_name = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/AMICI/ray_positions_wavelength_W1_field_F1.h5"
+        file_name = "./data_zemax/single_prism_misaligned/ray_positions_wavelength_W1_field_F1.h5"
 
         params = [[source_pos_list[i], w_list[j], extract_positions(file_name.replace('W1', f'W{j+1}').replace('F1', f'F{i+1}'))]
                   for i in range(len(source_pos_list)) for j in range(len(w_list))]
@@ -721,7 +732,7 @@ if __name__ == '__main__':
         source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
         w_list = [450.0, 520., 650.]
 
-        file_name = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/single_prism_misaligned_5deg_delta_beta_c/ray_positions_wavelength_W1_field_F1.txt"
+        file_name = "./data_zemax/single_prism_misaligned/ray_positions_wavelength_W1_field_F1.txt"
 
         depth_list = torch.from_numpy(np.arange(-2., 2., 0.01))
         angle_list = torch.from_numpy(np.arange(5, 50, 2))
@@ -767,7 +778,7 @@ if __name__ == '__main__':
         source_pos_list = [source_pos1, source_pos2, source_pos3, source_pos4]
         w_list = [450.0, 520., 650.]
 
-        file_name = "/home/lpaillet/Documents/Codes/article-distorsions-dont-matter-data/data_zemax/single_prism_misaligned_5deg_delta_beta_c/ray_positions_wavelength_W1_field_F1.txt"
+        file_name = "./data_zemax/single_prism_misaligned/ray_positions_wavelength_W1_field_F1.txt"
 
         params = [[source_pos_list[i], w_list[j], extract_positions(file_name.replace('W1', f'W{j+1}').replace('F1', f'F{i+1}'))]
                   for i in range(len(source_pos_list)) for j in range(len(w_list))]

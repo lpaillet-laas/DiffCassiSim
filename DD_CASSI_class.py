@@ -127,7 +127,7 @@ class DD_CASSI(HSSystem):
 
         system_dict['wavelengths'] = self.wavelengths.tolist()
         system_dict['device'] = str(self.device)
-        system_dict['save_dir'] = self.save_dir
+        system_dict['save_dir'] = str(self.save_dir)  if self.save_dir is not None else None
 
         with open(filepath, 'w') as file:
             yaml.dump(system_dict, file)
@@ -167,7 +167,7 @@ class DD_CASSI(HSSystem):
 
         self.wavelengths = torch.tensor(system_dict['wavelengths']).float()
         self.device = system_dict['device']
-        self.save_dir = system_dict['save_dir']
+        self.save_dir = system_dict['save_dir'] 
     
     def modify_mask(self, mask):
         self.mask = mask
@@ -192,9 +192,9 @@ class DD_CASSI(HSSystem):
         """
         mask_lens_object = do.Lensgroup(origin, shift, theta_x, theta_y, theta_z, rotation_order, device = self.device)
         if self.mask is not None:
-            surf = [do.Aspheric(self.mask_pixelsize * self.mask.shape[0], self.mask_d), do.Aspheric(self.mask_pixelsize * self.mask.shape[0], self.mask_d)]
+            surf = [do.FakeScreen(self.mask_pixelsize * self.mask.shape[0], self.mask_d, is_square = True), do.FakeScreen(self.mask_pixelsize * self.mask.shape[0], self.mask_d, is_square = True)]
         else:
-            surf = [do.Aspheric(self.mask_pixelsize, self.mask_d), do.Aspheric(self.mask_pixelsize, self.mask_d)]
+            surf = [do.FakeScreen(self.mask_pixelsize, self.mask_d, is_square = True), do.FakeScreen(self.mask_pixelsize, self.mask_d, is_square = True)]
         materials = ['air', 'air', 'air']
         materials_processed = []
         for material in materials:
@@ -210,13 +210,13 @@ class DD_CASSI(HSSystem):
             self.compute_mask_transformation(new_origin, shift, theta_x, theta_y, theta_z, rotation_order=rotation_order)
         
 
-        #self.mask_t[2] += self.mask_d #TODO The best way should be to remove d entirely for the screen, as is done above
+        #self.mask_t[2] += self.mask_d # The best way should be to remove d entirely for the screen, as is done above. Can think about including it again later
 
         self.mask_lens_object = mask_lens_object
 
         return self.mask_R, self.mask_t
     
-    def prepare_mts_mask(self, start_distance = 0):
+    def prepare_mts_mask(self, start_distance = 0.):
         """
         Prepares the lens for multi-surface tracing (MTS) by setting the necessary parameters. This function should be called before rendering the lens.
         It is based on the original prepare_mts function in the diffoptics library, with the option to specify the starting distance for the lens surfaces to allow for smoother rendering with several lens groups.
@@ -225,6 +225,8 @@ class DD_CASSI(HSSystem):
             start_distance (float, optional): The starting distance for the mask. Defaults to 0.0.
         """
         self.mask_d = -self.mask_d
+
+        print("Start distance: ", start_distance)
 
         self.mask_origin = torch.tensor([self.mask_origin[0], - self.mask_origin[1], start_distance - self.mask_origin[2]]).float().to(device=self.device)
         self.mask_shift = torch.tensor([self.mask_shift[0], - self.mask_shift[1], - self.mask_shift[2]]).float().to(device=self.device)
@@ -273,12 +275,8 @@ class DD_CASSI(HSSystem):
             texturesize * self.mask_pixelsize, texture, device=self.device
         )
 
-        # print("R mask: ", R_mask)
-        # print("t mask: ", t_mask)
-        # print("d mask: ", self.mask_d)
-        #local, uv, valid_screen = screen.intersect(rays)[:]
-        # print("Local: ", local[...,2])
-        # print("Rays : ", rays.o[...,2])
+
+        #local, uv, valid_screen = screen.intersect(rays) #local are the rays position before normalization
         uv, valid_screen = screen.intersect(rays)[1:] #uv is the intersection points, in [0,1]^2, of shape (N, 2) with N the number of rays, valid_screen is a boolean tensor indicating if the ray intersects the screen
 
         valid_last = valid & valid_screen
@@ -316,7 +314,6 @@ class DD_CASSI(HSSystem):
 
         #print("Outgoing rays: ", ray_mid)
         if z0_mask is None:
-            #z0_mask = self.mask_origin[2] + self.mask_shift[2] + self.mask_d
             z0_mask = self.mask_lens_object.to_world.transform_point(torch.tensor([0., 0., self.mask_d]).to(self.device)).cpu().detach().numpy()[2]
 
         print("z0 mask: ", z0_mask)
@@ -420,9 +417,12 @@ class DD_CASSI(HSSystem):
         Returns:
             tuple: A tuple containing the positions of the rays (big_uv) and the corresponding mask (big_mask).
         """
-        #start_distance = self.system[0].d_sensor*torch.cos(self.system[0].theta_y*np.pi/180) + self.system[0].origin[-1] + self.system[0].shift[-1]
+        if z0 is None:
+            z0 = torch.tensor([self.system[-1].d_sensor*torch.cos(self.system[-1].theta_y*np.pi/180).item() + self.system[-1].origin[-1] + self.system[-1].shift[-1]]).cpu().detach().item()
+        
         start_distance = z0
-        self.prepare_mts_mask(start_distance=start_distance)
+        if (not self.mask_pixelsize == 0.) and (not self.mask_mts_prepared):
+            self.prepare_mts_mask(start_distance=start_distance)
         
         if offsets is None:
             offsets = [0 for i in range(self.size_system)]
@@ -547,7 +547,6 @@ class DD_CASSI(HSSystem):
         masktexture = torch.from_numpy(mask_pattern) if not isinstance(mask_pattern, torch.Tensor) else mask_pattern
         #masktexture = masktexture.clone().rot90(1, [0, 1]).to(self.device)
         
-        #t_mask = torch.Tensor([0., 0., z0]).to(self.device)
         mask_screen = do.Screen(
             do.Transformation(self.mask_R, self.mask_t),
             masktexturesize * self.mask_pixelsize, masktexture, device=self.device
@@ -580,7 +579,6 @@ class DD_CASSI(HSSystem):
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape(*np.flip(np.asarray(self.system[0].film_size))) # Flip
             Is.append(I)
         # show image
@@ -658,7 +656,6 @@ class DD_CASSI(HSSystem):
         masktexture = torch.from_numpy(mask_pattern) if not isinstance(mask_pattern, torch.Tensor) else mask_pattern
         #masktexture = masktexture.clone().rot90(1, [0, 1]).to(self.device)
         
-        #t_mask = torch.Tensor([0., 0., z0]).to(self.device)
         mask_screen = do.Screen(
             do.Transformation(self.mask_R, self.mask_t),
             masktexturesize * self.mask_pixelsize, masktexture, device=self.device
@@ -697,7 +694,6 @@ class DD_CASSI(HSSystem):
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0]))
             Is.append(I)
         # show image
@@ -751,7 +747,6 @@ class DD_CASSI(HSSystem):
         masktexture = torch.from_numpy(mask_pattern) if not isinstance(mask_pattern, torch.Tensor) else mask_pattern
         #masktexture = masktexture.clone().rot90(1, [0, 1]).to(self.device)
         
-        #t_mask = torch.Tensor([0., 0., z0]).to(self.device)
         mask_screen = do.Screen(
             do.Transformation(self.mask_R, self.mask_t),
             masktexturesize * self.mask_pixelsize, masktexture, device=self.device
@@ -778,7 +773,6 @@ class DD_CASSI(HSSystem):
         M = big_mask.sum(dim=1) # [nC, N]
         I = I / (M.unsqueeze(0) + 1e-10)
         # reshape data to a 2D image
-        #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
         I = I.reshape((-1, I.shape[1], self.system[0].film_size[1], self.system[0].film_size[0]))
         # show image
         I_rendered = I.permute(0, 2, 3, 1)#.astype(np.uint8)
@@ -803,14 +797,18 @@ class DD_CASSI(HSSystem):
             I_rendered (ndarray): The rendered image.
         """
         #start_distance = self.system[0].d_sensor*torch.cos(self.system[0].theta_y*np.pi/180) + self.system[0].origin[-1] + self.system[0].shift[-1]
+        if z0 is None:
+            z0 = torch.tensor([self.system[-1].d_sensor*torch.cos(self.system[-1].theta_y*np.pi/180).item() + self.system[-1].origin[-1] + self.system[-1].shift[-1]]).cpu().detach().item()
+
         start_distance = z0
         
-        self.prepare_mts_mask(start_distance=start_distance)
+        if (not self.mask_pixelsize == 0.) and (not self.mask_mts_prepared):
+            self.prepare_mts_mask(start_distance=start_distance)
         return super().propagate(texture, nb_rays, wavelengths, z0, offsets, numerical_aperture, save, plot)
     
-    def combined_plot_setup(self, with_sensor=False):
+    def plot_setup2D(self, with_sensor=False):
         """
-        Plot the setup in a combined figure.
+        Plot the whole setup.
 
         Args:
             with_sensor (bool, optional): Whether to include the sensor in the plot. Defaults to False.
@@ -836,7 +834,7 @@ class DD_CASSI(HSSystem):
         # Return the figure and axes objects
         return fig, ax
     
-    def plot_setup_with_rays(self, oss, ax=None, fig=None, color='b-', linewidth=1.0, show=True):
+    def plot_setup_with_rays(self, oss, ax=None, fig=None, color='b-', linewidth=1.0, plot_setup = True, show=True):
         """
         Plots the setup with rays for a given list of lenses and optical systems.
 
@@ -855,22 +853,22 @@ class DD_CASSI(HSSystem):
         
         # If there is only one lens, plot the raytraces with the sensor
         if self.size_system==1:
-            ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, linewidth=linewidth, show=show, with_sensor=True, color=color)
+            ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, linewidth=linewidth, show=show, with_sensor=True, plot_setup=plot_setup, color=color)
             return ax, fig
         
         # Plot the raytraces for the first lens without the sensor
-        ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False)
+        ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False, plot_setup=plot_setup)
         
         # Plot the raytraces for the intermediate lenses without the sensor
         for i, lens in enumerate(self.system[1:-1]):
-            ax, fig = lens.plot_raytraces(oss[i+1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False)
+            ax, fig = lens.plot_raytraces(oss[i+1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False, plot_setup=plot_setup)
         
         # Plot the mask position
-        if self.mask is not None:
+        if self.mask is not None and plot_setup:
             self.mask_lens_object.plot_setup2D(ax=ax, fig=fig, color='r', with_sensor=False, show=False)
 
         # Plot the raytraces for the last lens with the sensor
-        ax, fig = self.system[-1].plot_raytraces(oss[-1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=show, with_sensor=True)
+        ax, fig = self.system[-1].plot_raytraces(oss[-1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=show, with_sensor=True, plot_setup=plot_setup)
         
         return ax, fig
     
@@ -1067,6 +1065,7 @@ class DD_CASSI(HSSystem):
                     else:
                         surface_dict['d'] = surface.d.item() - new_lens_surfaces[ind_s-1].d.item() if isinstance(surface.d, torch.Tensor) and isinstance(new_lens_surfaces[ind_s-1].d, torch.Tensor) else surface.d - new_lens_surfaces[ind_s-1].d
                     surface_dict['R'] = surface.r.item() if isinstance(surface.r, torch.Tensor) else surface.r
+                    surface_dict['is_square'] = surface.is_square if hasattr(surface, 'is_square') else False
                     surface_dict['params'] = get_surface_params(surface)
 
                     #if (np.dot(lens_dir, mirrored_lens_dir) < 0) and (surface_dict['type'] == "XYPolynomial"):
@@ -1267,19 +1266,19 @@ def get_surface_params(surface):
         dict: The parameters of the surface.
     """
     if isinstance(surface, do.Aspheric):
-        return {'c': surface.c, 'k': surface.k, 'ai': surface.ai, 'is_square': surface.is_square}
+        return {'c': float(surface.c), 'k': float(surface.k), 'ai': surface.ai}
     elif isinstance(surface, do.XYPolynomial):
-        return {'J': surface.J, 'ai': surface.ai, 'b': float(surface.b), 'is_square': surface.is_square}
+        return {'J': surface.J, 'ai': surface.ai, 'b': float(surface.b)}
     elif isinstance(surface, do.BSpline):
-        return {'size': surface.size, 'px': surface.px, 'py': surface.py, 'tx': surface.tx, 'ty': surface.ty, 'c': surface.c, 'is_square': surface.is_square}
+        return {'size': surface.size, 'px': surface.px, 'py': surface.py, 'tx': surface.tx, 'ty': surface.ty, 'c': surface.c}
     elif isinstance(surface, do.ThinLens):
-        return {'f': float(surface.f), 'is_square': surface.is_square}
+        return {'f': float(surface.f)}
     elif isinstance(surface, do.ThinLenslet):
-        return {'f': float(surface.f), 'r0': surface.r0, 'is_square': surface.is_square}
+        return {'f': float(surface.f), 'r0': surface.r0}
     elif isinstance(surface, do.FocusThinLens):
-        return {'f': float(surface.f), 'is_square': surface.is_square}
+        return {'f': float(surface.f)}
     elif isinstance(surface, do.Mirror):
-        return {'is_square': surface.is_square}
+        return {}
     else:
         raise ValueError("Surface type not recognized")
     

@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.lines as lines
 import matplotlib
+import pyvista as pv
+
 from tqdm import tqdm
 
 import sys
@@ -91,8 +93,11 @@ class HSSystem:
                     - For 'Aspheric': 'c' (float), 'k' (float), 'ai' (float or None), 'is_square' (bool).
                     - For 'XYPolynomial': 'J' (float), 'ai' (float or None), 'b' (float or None), 'is_square' (bool).
                     - For 'BSpline': 'size' (tuple[int, int]) necessary, 'px' (int), 'py' (int), 'tx' (float or None), 'ty' (float or None), 'c' (float or None), 'is_square' (bool).
-                    - For 'ThinLens': 'f' (float)
-                    - For 'FocusThinLens': 'f' (float)
+                    - For 'ThinLens': 'f' (float), 'is_square' (bool).
+                    - For 'FocusThinLens': 'f' (float), 'is_square' (bool).
+                    - For 'ThinLenslet': 'f' (float), 'r0' (float), 'c0' (list[float, float]), 'is_square' (bool).
+                    - For 'Mirror': 'is_square' (bool).
+                    - For 'Aperture': 'is_square' (bool).
             materials (list[str]): List of the names of the desired materials.
             d_sensor (float): Distance from the origin to the sensor.
             r_last (float): Radius of the last surface.
@@ -119,11 +124,14 @@ class HSSystem:
                             surface['params'][argument] = 0.
                         elif argument == 'ai':
                             surface['params'][argument] = None
-                        elif argument == 'is_square':
-                            surface['params'][argument] = False
+                    if (argument == 'is_square') and (argument not in surface):
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
 
                 surfaces_processed.append(do.Aspheric(
-                    surface['R'], surface['d']+accumulated_d, c=surface['params']['c'], ai=surface['params']['ai'], is_square=surface['params']['is_square'], device=self.device
+                    surface['R'], surface['d']+accumulated_d, c=surface['params']['c'], ai=surface['params']['ai'], is_square=surface['is_square'], device=self.device
                 ))
             elif surface['type'] == 'XYPolynomial':
                 arguments = ['J', 'ai', 'b', 'is_square']
@@ -133,10 +141,13 @@ class HSSystem:
                             surface['params'][argument] = 0.
                         elif argument in ['ai', 'b']:
                             surface['params'][argument] = None
-                        elif argument == 'is_square':
-                            surface['params'][argument] = False
+                    if (argument == 'is_square') and (argument not in surface):
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
                 surfaces_processed.append(do.XYPolynomial(
-                    surface['R'], surface['d']+accumulated_d, J=surface['params']['J'], ai=surface['params']['ai'], b=surface['params']['b'], is_square=surface['params']['is_square'], device=self.device
+                    surface['R'], surface['d']+accumulated_d, J=surface['params']['J'], ai=surface['params']['ai'], b=surface['params']['b'], is_square=surface['is_square'], device=self.device
                 ))
             elif surface['type'] == 'BSpline':
                 arguments = ['size', 'px', 'py', 'tx', 'ty', 'c', 'is_square']
@@ -148,10 +159,13 @@ class HSSystem:
                             surface['params'][argument] = 3
                         elif argument in ['tx', 'ty', 'c']:
                             surface['params'][argument] = None
-                        elif argument == 'is_square':
-                            surface['params'][argument] = False
+                    if (argument == 'is_square') and (argument not in surface):
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
                 surfaces_processed.append(do.BSpline(
-                    surface['R'], surface['d']+accumulated_d, size=surface['params']['size'], px=surface['params']['px'], py=surface['params']['py'], tx=surface['params']['tx'], ty=surface['params']['ty'], c=surface['params']['c'], is_square=surface['params']['is_square'], device=self.device
+                    surface['R'], surface['d']+accumulated_d, size=surface['params']['size'], px=surface['params']['px'], py=surface['params']['py'], tx=surface['params']['tx'], ty=surface['params']['ty'], c=surface['params']['c'], is_square=surface['is_square'], device=self.device
                 ))
             elif surface['type'] == 'ThinLens':
                 arguments = ['f', 'is_square']
@@ -159,23 +173,31 @@ class HSSystem:
                     if argument not in surface['params']:
                         if argument == 'f':
                             surface['params'][argument] = 0.
-                        elif argument == 'is_square':
-                            surface['params'][argument] = False
+                    if (argument == 'is_square') and (argument not in surface):
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
                 surfaces_processed.append(do.ThinLens(
-                    surface['R'], surface['d'] + accumulated_d, surface['params']['f'], is_square=surface['params']['is_square'], device=self.device
+                    surface['R'], surface['d'] + accumulated_d, surface['params']['f'], is_square=surface['is_square'], device=self.device
                 ))
             elif surface['type'] == 'ThinLenslet':
-                arguments = ['f', 'is_square', 'r0']
+                arguments = ['f', 'is_square', 'r0', 'c0']
                 for argument in arguments:
                     if argument not in surface['params']:
                         if argument == 'f':
                             surface['params'][argument] = 0.
-                        elif argument == 'is_square':
-                            surface['params'][argument] = False
                         elif argument == 'r0':
                             surface['params'][argument] = 0.
+                        elif argument == 'c0':
+                            surface['params'][argument] = [0., 0.]
+                    if (argument == 'is_square') and (argument not in surface):
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
                 surfaces_processed.append(do.ThinLenslet(
-                    surface['R'], surface['params']['r0'], surface['d'] + accumulated_d, surface['params']['f'], is_square=surface['params']['is_square'], device=self.device
+                    surface['R'], surface['params']['r0'], surface['d'] + accumulated_d, surface['params']['f'], c0 = surface['params']['c0'], is_square=surface['is_square'], device=self.device
                 ))
             elif surface['type'] == 'FocusThinLens':
                 arguments = ['f', 'is_square']
@@ -183,19 +205,35 @@ class HSSystem:
                     if argument not in surface['params']:
                         if argument == 'f':
                             surface['params'][argument] = 0.
-                        elif argument == 'is_square':
-                            surface['params'][argument] = False
+                    if (argument == 'is_square') and (argument not in surface):
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
                 surfaces_processed.append(do.FocusThinLens(
-                    surface['R'], surface['d'] + accumulated_d, surface['params']['f'], device=self.device
+                    surface['R'], surface['d'] + accumulated_d, surface['params']['f'], is_square = surface['is_square'], device=self.device
                 ))
             elif surface['type'] == 'Mirror':
                 arguments = ['is_square']
                 for argument in arguments:
-                    if argument not in surface['params']:
-                        if argument == 'is_square':
-                            surface['params'][argument] = False
+                    if argument == 'is_square' and argument not in surface:
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
                 surfaces_processed.append(do.Mirror(
-                    surface['R'], surface['d'] + accumulated_d, is_square=surface['params']['is_square'], device=self.device
+                    surface['R'], surface['d'] + accumulated_d, is_square=surface['is_square'], device=self.device
+                ))
+            elif surface['type'] == 'Aperture':
+                arguments = ['is_square']
+                for argument in arguments:
+                    if argument == 'is_square' and argument not in surface:
+                        if argument in surface['params']:
+                            surface[argument] = surface['params'][argument]
+                        else:
+                            surface[argument] = False
+                surfaces_processed.append(do.Aperture(
+                    surface['R'], surface['d'] + accumulated_d, is_square=surface['is_square'], device=self.device
                 ))
 
             accumulated_d += surface['d']
@@ -224,18 +262,25 @@ class HSSystem:
 
         if list_film_size is None:
             list_film_size = [0. for i in range(n)]
+            self.list_film_size = list_film_size
         if list_pixel_size is None:
             list_pixel_size = [0. for i in range(n)]
+            self.list_pixel_size = list_pixel_size
         if list_theta_x is None:
             list_theta_x = [0. for i in range(n)]
+            self.list_theta_x = list_theta_x
         if list_theta_y is None:
             list_theta_y = [0. for i in range(n)]
+            self.list_theta_y = list_theta_y
         if list_theta_z is None:
             list_theta_z = [0. for i in range(n)]
+            self.list_theta_z = list_theta_z
         if list_origin is None:
             list_origin = [np.zeros(3) for i in range(n)]
+            self.list_origin = [origin.tolist() for origin in list_origin]
         if list_shift is None:
             list_shift = [np.zeros(3) for i in range(n)]
+            self.list_shift = [shift.tolist() for shift in list_shift]
         if list_rotation_order is None:
             list_rotation_order = ['xyz' for i in range(n)]
             self.list_rotation_order = list_rotation_order
@@ -245,7 +290,7 @@ class HSSystem:
             lens_material = self.systems_materials[i]
             d_sensor = list_d_sensor[i]
             r_last = list_r_last[i]
-            film_size = [int(list_film_size[i][0]), int(list_film_size[i][1])]
+            film_size = [int(list_film_size[i][0]) , int(list_film_size[i][1])] if not hasattr(list_film_size[i][0], 'value') else [int(list_film_size[i][0].value), int(list_film_size[i][1].value)]
             pixel_size = list_pixel_size[i]
             theta_x = list_theta_x[i]
             theta_y = list_theta_y[i]
@@ -295,7 +340,7 @@ class HSSystem:
         system_dict['list_rotation_order'] = list(self.list_rotation_order)
         system_dict['wavelengths'] = self.wavelengths.tolist()
         system_dict['device'] = str(self.device)
-        system_dict['save_dir'] = str(self.save_dir)
+        system_dict['save_dir'] = str(self.save_dir) if self.save_dir is not None else None
 
         with open(filepath, 'w') as file:
             yaml.dump(system_dict, file)
@@ -418,41 +463,43 @@ class HSSystem:
         # treat the lenspart as a camera; append one more surface to it
         if lens_id == -1:
             lens.surfaces.append(do.Aspheric(lens.r_last, lens.d_sensor, 0.0))
-        #lens.surfaces.append(do.Aspheric(lens.r_last, lens.d_sensor, 0.0))
         
         # reverse surfaces
-        d_total = torch.tensor([lens.surfaces[-1].d])
+        d_total = torch.tensor(lens.surfaces[-1].d, device=self.device, dtype=torch.float32)
         #print("D_total: ", d_total)
         for i in range(len(lens.surfaces)):
-            #lens.surfaces[i].d = (d_total - lens.surfaces[i].d + start_distance).item()
-            lens.surfaces[i].d = - lens.surfaces[i].d
+            lens.surfaces[i].d = - torch.tensor(lens.surfaces[i].d, device= self.device, dtype=torch.float32)
+            if hasattr(lens.surfaces[i].d, 'value'):
+                lens.surfaces[i].d.value = lens.surfaces[i].d.value.item()
             lens.surfaces[i].reverse()
         lens.surfaces.reverse()
         if lens_id == -1:
             lens.surfaces.pop(0) # remove sensor plane
+
         # reverse materials
         lens.materials.reverse()
 
         # aperture plane
         lens.aperture_radius = lens.surfaces[0].r
-        #lens.aperture_distance = torch.tensor([lens.surfaces[0].d])
 
-        #print("d_sensor", lens.d_sensor)
-        #lens.aperture_distance = (start_distance - lens.origin[2]) - lens.shift[2] + torch.tensor([lens.surfaces[0].d])
         lens.aperture_distance = lens.d_sensor + lens.surfaces[0].d# + lens.origin[2] + lens.shift[2]
-        #print("Lens: ", lens)
-        #print("aperture dist: ", lens.aperture_distance)
+
         lens.mts_prepared = True
-        #lens.d_sensor = 0
+        lens.mts_prepared = lens.mts_prepared.value if hasattr(lens.mts_prepared, 'value') else lens.mts_prepared
 
         #print("Sd: ", start_distance)
         #print("Total: ", d_total)
 
-        ######lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance + d_total*np.cos(lens.theta_y*np.pi/180).item()]).float().to(device=self.device)
-        lens.origin = torch.tensor([lens.origin[0], - lens.origin[1], start_distance - lens.origin[2]]).float().to(device=self.device)
+        lens.origin = torch.tensor([lens.origin[0] if torch.is_tensor(lens.origin) else lens.origin[0].value
+                                    , - lens.origin[1] if torch.is_tensor(lens.origin) else - lens.origin[1].value
+                                    ,
+                                    start_distance - lens.origin[2] if torch.is_tensor(lens.origin) else (start_distance - lens.origin[2]).value]
+                                    , dtype = torch.float32, device=self.device)
         lens.d_sensor = - lens.d_sensor
         
-        lens.shift = torch.tensor([lens.shift[0], - lens.shift[1], - lens.shift[2]]).float().to(device=self.device)
+        lens.shift = torch.tensor([lens.shift[0] if torch.is_tensor(lens.shift) else lens.shift[0].value,
+                                   - lens.shift[1] if torch.is_tensor(lens.shift) else - lens.shift[1].value
+                                   , - lens.shift[2] if torch.is_tensor(lens.shift) else - lens.shift[2].value], dtype=torch.float32, device=self.device)
         lens.theta_x *= -1
         lens.theta_y *= -1
         R_, t_ = lens._compute_transformation().R, lens._compute_transformation().t
@@ -476,9 +523,7 @@ class HSSystem:
             tuple: A tuple containing the intensity values (I) and the mask indicating valid pixels on the screen.
         """
         # Sample rays from the sensor
-        ####valid, ray_mid = self.system[-1].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
-        valid, ray_mid = self.system[0].sample_ray_sensor(wavelength.item(), numerical_aperture = numerical_aperture)
-        #valid_start = valid.clone()
+        valid, ray_mid = self.system[0].sample_ray_sensor(wavelength, numerical_aperture = numerical_aperture)
 
         #print("Ray 1: ", ray_mid)
         #print("Nb valid 1: ", torch.sum(valid))
@@ -513,7 +558,7 @@ class HSSystem:
         # Apply mask to filter out invalid rays
         mask = valid_last & valid_screen
         
-        print("Ratio valid rays: ", (torch.sum(mask)/(screen.texture.shape[0]*screen.texture.shape[1])).item())
+        #print("Ratio valid rays: ", (torch.sum(mask)/(screen.texture.shape[0]*screen.texture.shape[1])).item())
 
         if save_pos:
             return uv, mask
@@ -570,31 +615,32 @@ class HSSystem:
         # create a dummy screen
         pixelsize = self.system[-1].pixel_size # [mm]
 
-        nb_wavelengths = len(wavelengths)
-
+        nb_wavelengths = len(wavelengths) if hasattr(wavelengths, '__len__') else wavelengths.shape[0]
         # default texture
         if texture is None:
             texture = np.ones(self.system[0].film_size + (nb_wavelengths,)).astype(np.float32)
         
-        texture_torch = torch.Tensor(texture).float().to(device=self.device)
+        texture_torch = torch.tensor(texture, dtype=torch.float32, device=self.device)
 
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
         texturesize = np.array(texture_torch.shape[0:2])
 
         # setup screen
         screen = do.Screen(
-            do.Transformation(np.eye(3), np.array([0, 0, z0])),
+            do.Transformation(np.eye(3), np.array([0, 0, z0.value if hasattr(z0, 'value') else z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
         #print("Texture nonzero: ", texture_torch.count_nonzero())
         # render
-        ray_counts_per_pixel = nb_rays
+        ray_counts_per_pixel = nb_rays.value if hasattr(nb_rays, 'value') else nb_rays
+        numerical_aperture = numerical_aperture.value if hasattr(numerical_aperture, 'value') else numerical_aperture
+
         time_start = time.time()
         big_uv = torch.zeros((nb_wavelengths, ray_counts_per_pixel, self.system[0].film_size[0]*self.system[0].film_size[1], 2), dtype=torch.float,  device=self.device)
         big_mask = torch.zeros((nb_wavelengths, ray_counts_per_pixel, self.system[0].film_size[0]*self.system[0].film_size[1]), dtype=torch.bool, device=self.device)
         screen.update_texture(texture_torch[..., 0])
 
-        for wavelength_id, wavelength in enumerate(wavelengths):
+        for wavelength_id, wavelength in enumerate(wavelengths.value if hasattr(wavelengths, 'value') else wavelengths):
             # multi-pass rendering by sampling the aperture
             for i in tqdm(range(ray_counts_per_pixel)):
                 uv, mask = self.render_single_back_save_pos(wavelength, screen, numerical_aperture=numerical_aperture)
@@ -625,7 +671,7 @@ class HSSystem:
         # create a dummy screen
         pixelsize = self.system[0].pixel_size # [mm]
 
-        nb_wavelengths = len(wavelengths)
+        nb_wavelengths = len(wavelengths) if hasattr(wavelengths, '__len__') else wavelengths.shape[0]
 
         # default texture
         if texture is None:
@@ -638,10 +684,10 @@ class HSSystem:
         if plot and (texture.shape[2] == 3):
             plt.figure()
             plt.plot()
-            plt.imshow(texture)
+            plt.imshow(texture.value if hasattr(texture, 'value') else texture)
             plt.show()
 
-        texture_torch = torch.Tensor(texture).float().to(device=self.device)
+        texture_torch = torch.tensor(texture, dtype=torch.float32, device=self.device)
         # texture_torch = torch.permute(texture_torch, (1,0,2)) # Permute
         # texture_torch = texture_torch.flip(dims=[0]) # Flip
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
@@ -649,16 +695,16 @@ class HSSystem:
 
         # setup screen
         screen = do.Screen(
-            do.Transformation(np.eye(3), np.array([0, 0, z0])),
+            do.Transformation(np.eye(3), np.array([0, 0, z0.value if hasattr(z0, 'value') else z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        #print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
-        ray_counts_per_pixel = nb_rays
+        ray_counts_per_pixel = nb_rays.value if hasattr(nb_rays, 'value') else nb_rays
+
         time_start = time.time()
         Is = []
-        for wavelength_id, wavelength in enumerate(wavelengths):
+        for wavelength_id, wavelength in enumerate(wavelengths.value if hasattr(wavelengths, 'value') else wavelengths):
             screen.update_texture(texture_torch[..., wavelength_id])
 
             # multi-pass rendering by sampling the aperture
@@ -672,35 +718,40 @@ class HSSystem:
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-            I = I.reshape(*np.flip(np.asarray(self.system[0].film_size))) # Flip
+            new_shape = np.flip(np.asarray(self.system[0].film_size)) # Flip
+            if hasattr(I, 'value'):
+                I = I.reshape(new_shape)
+            else:
+                I = I.reshape(*new_shape)
             Is.append(I)
         # show image
-        I_rendered = torch.stack(Is, axis=-1)#.astype(np.uint8)
+        I_rendered = torch.stack(Is, dim=-1)
         I_rendered_plot = I_rendered.clone().detach().cpu().numpy()
         print(f"Elapsed rendering time: {time.time()-time_start:.3f}s")
         if plot and (nb_wavelengths==3):
-            plt.imshow(np.flip(I_rendered_plot/I_rendered_plot.max(axis=(0,1))[np.newaxis, np.newaxis, :], axis=2))
+            flipped_array = np.flip(I_rendered_plot/I_rendered_plot.max(axis=(0,1))[np.newaxis, np.newaxis, :], axis=2)
+            plt.imshow(flipped_array.value if hasattr(flipped_array, 'value') else flipped_array)
             plt.title("RGB rendered with dO")
             plt.show()
         ax, fig = plt.subplots((nb_wavelengths+2)// 3, 3, figsize=(15, 5))
         ax.suptitle("Rendered with dO")
         for i in range(nb_wavelengths):
-            fig.ravel()[i].set_title("Wavelength: " + str(float(wavelengths[i])) + " nm")
+            fig.ravel()[i].set_title("Wavelength: " + str(float(wavelengths[i].value if hasattr(wavelengths[i], 'value') else wavelengths[i])) + " nm")
             if nb_wavelengths > 3:
-                fig[i//3, i % 3].imshow(I_rendered_plot[:,:,i])
+                fig[i//3, i % 3].imshow(I_rendered_plot[:,:,i].value if hasattr(I_rendered_plot[:,:,i], 'value') else I_rendered_plot[:,:,i])
             else:
-                fig[i].imshow(I_rendered_plot[:,:,i])
+                fig[i].imshow(I_rendered_plot[:,:,i].value if hasattr(I_rendered_plot[:,:,i], 'value') else I_rendered_plot[:,:,i])
             if save and self.save_dir is not None:
-                plt.imsave(os.path.join(self.save_dir, f"rendered_{wavelengths[i]}.png"), I_rendered_plot[:,:,i])
+                plt.imsave(os.path.join(self.save_dir, f"rendered_{wavelengths[i]}.png"), I_rendered_plot[:,:,i].value if hasattr(I_rendered_plot[:,:,i], 'value') else I_rendered_plot[:,:,i])
         if plot:
             plt.show()
-            plt.imshow(np.sum(I_rendered_plot, axis=2))
+            plt.imshow(np.sum(I_rendered_plot.value if hasattr(I_rendered_plot, 'value') else I_rendered_plot, axis=2))
             plt.title("Sum of all wavelengths")
             plt.show()
 
         if save and nb_wavelengths==3 and self.save_dir is not None:
-            plt.imsave(os.path.join(self.save_dir, "rendered_rgb.png"), I_rendered_plot/I_rendered_plot.max(axis=(0,1))[np.newaxis, np.newaxis, :])
+            scaled_array = I_rendered_plot/I_rendered_plot.max(axis=(0,1))[np.newaxis, np.newaxis, :]
+            plt.imsave(os.path.join(self.save_dir, "rendered_rgb.png"), scaled_array.value if hasattr(scaled_array, 'value') else scaled_array)
 
         return I_rendered
 
@@ -723,9 +774,9 @@ class HSSystem:
         # create a dummy screen
         pixelsize = self.system[0].pixel_size # [mm]
 
-        nb_wavelengths = len(wavelengths)
+        nb_wavelengths = len(wavelengths) if hasattr(wavelengths, '__len__') else wavelengths.shape[0]
 
-        texture_torch = torch.Tensor(texture).float().to(device=self.device)
+        texture_torch = torch.tensor(texture, dtype=torch.float32, device=self.device)
         # texture_torch = torch.permute(texture_torch, (0, 2, 1, 3)) # Permute
         # texture_torch = texture_torch.flip(dims=[1]) # Flip
         texture_torch = texture_torch.rot90(1, dims=[1, 2])
@@ -733,16 +784,16 @@ class HSSystem:
 
         # setup screen
         screen = do.Screen(
-            do.Transformation(np.eye(3), np.array([0, 0, z0])),
+            do.Transformation(np.eye(3), np.array([0, 0, z0.value if hasattr(z0, 'value') else z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        #print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
-        ray_counts_per_pixel = nb_rays
+        ray_counts_per_pixel = nb_rays.value if hasattr(nb_rays, 'value') else nb_rays
+
         Is = []
         print("Simulating acquisition")
-        for wavelength_id, wavelength in tqdm(enumerate(wavelengths)):
+        for wavelength_id, wavelength in tqdm(enumerate(wavelengths.value if hasattr(wavelengths, 'value') else wavelengths)):
             screen.update_texture_batch(texture_torch[..., wavelength_id])
 
             # multi-pass rendering by sampling the aperture
@@ -756,11 +807,10 @@ class HSSystem:
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
             I = I.reshape((-1, self.system[0].film_size[1], self.system[0].film_size[0]))
             Is.append(I)
         # show image
-        I_rendered = torch.stack(Is, axis=-1)#.astype(np.uint8)
+        I_rendered = torch.stack(Is, dim=-1)
         return I_rendered
     
     def render_all_based_on_saved_pos(self, big_uv = None, big_mask = None, texture = None, nb_rays=20, wavelengths = [656.2725, 587.5618, 486.1327],
@@ -782,9 +832,9 @@ class HSSystem:
         # create a dummy screen
         pixelsize = self.system[0].pixel_size # [mm]
 
-        nb_wavelengths = len(wavelengths)
+        nb_wavelengths = len(wavelengths) if hasattr(wavelengths, '__len__') else wavelengths.shape[0]
 
-        texture_torch = torch.Tensor(texture).float().to(device=self.device)
+        texture_torch = torch.tensor(texture, dtype=torch.float32, device=self.device)
         # texture_torch = torch.permute(texture_torch, (0, 2, 1, 3)) # Permute
         # texture_torch = texture_torch.flip(dims=[1]) # Flip
         texture_torch = texture_torch.rot90(1, dims=[1, 2])
@@ -792,10 +842,9 @@ class HSSystem:
 
         # setup screen
         screen = do.Screen(
-            do.Transformation(np.eye(3), np.array([0, 0, z0])),
+            do.Transformation(np.eye(3), np.array([0, 0, z0.value if hasattr(z0, 'value') else z0])),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        ####print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
         print("Simulating acquisition")
@@ -810,13 +859,12 @@ class HSSystem:
         M = big_mask.sum(dim=1) # [nC, N]
         I = I / (M.unsqueeze(0) + 1e-10)
         # reshape data to a 2D image
-        ##print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
         I = I.reshape((-1, I.shape[1], self.system[0].film_size[1], self.system[0].film_size[0]))
         # show image
-        I_rendered = I.permute(0, 2, 3, 1)#.astype(np.uint8)
+        I_rendered = I.permute(0, 2, 3, 1)
         return I_rendered
     
-    def propagate(self, texture = None, nb_rays=20, wavelengths = [656.2725, 587.5618, 486.1327], z0=0, offsets=None,
+    def propagate(self, texture = None, nb_rays=20, wavelengths = [656.2725, 587.5618, 486.1327], z0=None, offsets=None,
                 numerical_aperture = 0.05, save=False, plot = False):
         """
         Perform ray tracing simulation for propagating light through the lens system. Renders the texture on a screen
@@ -837,26 +885,33 @@ class HSSystem:
         if offsets is None:
             offsets = [0 for i in range(self.size_system)]
 
-        # set a rendering image sensor, and call prepare_mts to prepare the lensgroup for rendering
-        for i, lens in enumerate(self.system[::-1]):
-            lens_mts_R, lens_mts_t = lens._compute_transformation().R, lens._compute_transformation().t
-            if i > 0:
-                self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
-            else:
-                max_z = lens.d_sensor*torch.cos(lens.theta_y*np.pi/180) + lens.origin[-1] + lens.shift[-1] # Last z coordinate in absolute coordinates
-                self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-1], R=lens_mts_R, t=lens_mts_t)    
-            #print("Surface ", i)
-            #print("Origin: ", lens.origin)
-            #print("Shift: ", lens.shift)
-            #print("D final: ", lens.surfaces[-1].d)
-        if plot:
-            self.combined_plot_setup(with_sensor=False)
+        if z0 is None:
+            z0 = torch.tensor([self.system[-1].d_sensor*torch.cos(self.system[-1].theta_y*np.pi/180).item() + self.system[-1].origin[-1] + self.system[-1].shift[-1]]).cpu().detach().item()
 
-        self.system = self.system[::-1] # The system is reversed
+        # set a rendering image sensor, and call prepare_mts to prepare the lensgroup for rendering
+        if not self.system[-1].mts_prepared:
+            for i, lens in enumerate(self.system[::-1]):
+                lens_mts_R, lens_mts_t = lens._compute_transformation().R, lens._compute_transformation().t
+                if i > 0:
+                    self.prepare_mts(-i-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-i-1], R=lens_mts_R, t=lens_mts_t)
+                else:
+                    max_z = lens.d_sensor*torch.cos(lens.theta_y*(np.pi/180)) + lens.origin[-1] + lens.shift[-1] # Last z coordinate in absolute coordinates
+                    self.prepare_mts(-1, lens.pixel_size, lens.film_size, start_distance = max_z + offsets[-1], R=lens_mts_R, t=lens_mts_t)    
+                #print("Surface ", i)
+                #print("Origin: ", lens.origin)
+                #print("Shift: ", lens.shift)
+                #print("D final: ", lens.surfaces[-1].d)
+            
+            self.system = self.system[::-1] # The system is reversed
+            
+        if plot:
+            self.plot_setup2D(with_sensor=False)
+
+        
         # create a dummy screen
         pixelsize = self.system[-1].pixel_size # [mm]
 
-        nb_wavelengths = len(wavelengths)
+        nb_wavelengths = len(wavelengths) if hasattr(wavelengths, '__len__') else wavelengths.shape[0]
 
         # default texture
         if texture is None:
@@ -865,29 +920,34 @@ class HSSystem:
         if plot and (nb_wavelengths == 3):
             plt.figure()
             plt.plot()
-            plt.imshow(texture.detach().cpu().numpy())
+            subtexture = texture.detach().cpu().numpy() if isinstance(texture, torch.Tensor) else texture
+            plt.imshow(subtexture if isinstance(subtexture, np.ndarray) else subtexture.value)
             plt.show()
 
-        texture_torch = torch.Tensor(texture).float().to(device=self.device)
+        texture_torch = torch.tensor(texture, dtype=torch.float32, device=self.device)
         # texture_torch = torch.permute(texture_torch, (1,0,2)) # Permute
         # texture_torch = texture_torch.flip(dims=[0]) # Flip
         texture_torch = texture_torch.rot90(1, dims=[0, 1])
 
         texturesize = np.array(texture_torch.shape[0:2])
+
+        z0 = z0 if isinstance(z0, float) else z0.value
         
         # setup screen
         screen = do.Screen(
-            do.Transformation(np.eye(3), np.array([0, 0, z0])),
+            do.Transformation(torch.eye(3, dtype = torch.float32, device=self.device), torch.tensor([0, 0, z0], dtype=torch.float32, device=self.device)),
             texturesize * pixelsize, texture_torch, device=self.device
         )
-        #print("Texture nonzero: ", texture_torch.count_nonzero())
 
         # render
-        ray_counts_per_pixel = nb_rays
+        ray_counts_per_pixel = nb_rays.value if hasattr(nb_rays, 'value') else nb_rays
+        numerical_aperture = numerical_aperture.value if hasattr(numerical_aperture, 'value') else numerical_aperture
+
         time_start = time.time()
         Is = []
 
-        for wavelength_id, wavelength in enumerate(wavelengths):
+        for wavelength_id, wavelength in enumerate(wavelengths.value if hasattr(wavelengths, 'value') else wavelengths):
+            #print("Wavelength: ", wavelength_id, wavelength)
             screen.update_texture(texture_torch[..., wavelength_id])
 
             # multi-pass rendering by sampling the aperture
@@ -899,31 +959,36 @@ class HSSystem:
                 M = M + mask
             I = I / (M + 1e-10)
             # reshape data to a 2D image
-            #print(f"Image {wavelength_id} nonzero count: {I.count_nonzero()}")
-
-            I = I.reshape(*np.flip(np.asarray(self.system[0].film_size)))
+            
+            #print(I)
+            new_shape = np.flip(np.asarray(self.system[0].film_size)) # Flip
+            if hasattr(I, 'value'):
+                I = I.reshape(new_shape)
+            else:
+                I = I.reshape(*new_shape)
             Is.append(I.cpu())
         # show image
-        I_rendered = torch.stack(Is, axis=-1)
+        I_rendered = torch.stack(Is, dim=-1)
         I_rendered_plot = I_rendered.detach().cpu().numpy()#.flip(0)#.astype(np.uint8)
         print(f"Elapsed rendering time: {time.time()-time_start:.3f}s")
         if plot and (nb_wavelengths==3):
-            plt.imshow(np.flip(I_rendered_plot/I_rendered_plot.max(axis=(0,1))[np.newaxis, np.newaxis, :], axis=2))
+            flipped_array = np.flip(I_rendered_plot/I_rendered_plot.max(axis=(0,1))[np.newaxis, np.newaxis, :], axis=2)
+            plt.imshow(flipped_array.value if hasattr(flipped_array, 'value') else flipped_array)
             plt.title("RGB rendered with dO")
             plt.show()
         ax, fig = plt.subplots((nb_wavelengths+2)// 3, 3, figsize=(15, 5))
         ax.suptitle("Rendered with dO")
         for i in range(nb_wavelengths):
-            fig.ravel()[i].set_title("Wavelength: " + str(float(wavelengths[i])) + " nm")
+            fig.ravel()[i].set_title("Wavelength: " + str(float(wavelengths[i].value if hasattr(wavelengths[i], 'value') else wavelengths[i])) + " nm")
             if nb_wavelengths > 3:
-                fig[i//3, i % 3].imshow(I_rendered_plot[:,:,i])
+                fig[i//3, i % 3].imshow(I_rendered_plot[:,:,i].value if hasattr(I_rendered_plot[:,:,i], 'value') else I_rendered_plot[:,:,i])
             else:
-                fig[i].imshow(I_rendered_plot[:,:,i])
+                fig[i].imshow(I_rendered_plot[:,:,i].value if hasattr(I_rendered_plot[:,:,i], 'value') else I_rendered_plot[:,:,i])
             if save and self.save_dir is not None:
-                plt.imsave(os.path.join(self.save_dir, f"rendered_{wavelengths[i]}.png"), I_rendered_plot[:,:,i])
+                plt.imsave(os.path.join(self.save_dir, f"rendered_{wavelengths[i]}.png"), I_rendered_plot[:,:,i].value if hasattr(I_rendered_plot[:,:,i], 'value') else I_rendered_plot[:,:,i])
         if plot:
             plt.show()
-            plt.imshow(np.sum(I_rendered_plot, axis=2))
+            plt.imshow(np.sum(I_rendered_plot.value if hasattr(I_rendered_plot, 'value') else I_rendered_plot, axis=2))
             plt.title("Sum of all wavelengths")
             plt.show()
 
@@ -932,17 +997,17 @@ class HSSystem:
 
         return I_rendered
 
-    def sample_rays_pos(self, wavelength, angles, x_pos, y_pos, z_pos, d = None):
+    def sample_rays_pos(self, wavelength, x_pos, y_pos, z_pos, d = None, angles=[[0., 0.]]):
         """
-        Samples rays with given wavelength, angles, and positions or direction. Giving the direction instead of the angles is the preferred method.
+        Samples rays with given wavelength, positions  and direction or angles. Giving the direction instead of the angles is the preferred method.
 
         Args:
             wavelength (float): The wavelength of the rays.
-            angles (list): A list of angles in degrees, where each angle is represented as a tuple (phi, psi).
             x_pos (float): The x-coordinate of the position.
             y_pos (float): The y-coordinate of the position.
             z_pos (float): The z-coordinate of the position.
             d (ndarray, optional): The direction of the rays. Preferred method. Defaults to None.
+            angles (list): A list of angles in degrees, representing the angles for the rays, where each angle is represented as a tuple (phi, psi).
 
         Returns:
             ray (do.Ray): A Ray object representing the sampled rays.
@@ -988,14 +1053,11 @@ class HSSystem:
         Returns:
             dist (torch.Tensor): The extracted hexapolar direction.
         """
-        #z = max(torch.norm(source_pos - torch.tensor([-self.entry_radius, 0])), torch.norm(source_pos - torch.tensor([self.entry_radius, 0])),
-        #                    torch.norm(source_pos - torch.tensor([0, -self.entry_radius])), torch.norm(source_pos - torch.tensor([0, self.entry_radius])))
         
-        z = self.system[0].surfaces[0].d + self.system[0].origin[-1] + self.system[0].shift[-1]#TODO: Check if this is correct
+        z = self.system[0].surfaces[0].d + self.system[0].origin[-1] + self.system[0].shift[-1]
         x, y = draw_circle_hexapolar(nb_centric_circles, z, max_angle, center_x = 0, center_y = 0)
 
-        #dist = torch.stack((x, y, self.system[0].surfaces[0].d*torch.ones(x.shape[0])), dim=-1)
-        dist = torch.stack((x, y, z*torch.ones(x.shape[0])), dim=-1)
+        dist = torch.stack((x.to(self.device), y.to(self.device), z*torch.ones(x.shape[0], device=self.device)), dim=-1)
 
         return dist
     
@@ -1025,14 +1087,14 @@ class HSSystem:
         # sample wavelengths in [nm]
         wavelength = torch.Tensor([wavelength]).float().to(self.device)
 
-        ray = self.sample_rays_pos(wavelength, angles, x_pos, y_pos, z_pos, d = d)
-        """ # Plot the position of the rays when they arrive on the first lens
-        pos = ray(torch.tensor([self.system[0].surfaces[0].d]))
-        if show_res:
-            plt.scatter(pos[:,1], pos[:,0])
-            plt.axis('scaled')
-            plt.title('Entry of first lens')
-        plt.show() """
+        ray = self.sample_rays_pos(wavelength, x_pos, y_pos, z_pos, d = d, angles=angles)
+        # # Plot the position of the rays when they arrive on the first lens
+        # pos = ray(torch.tensor([self.system[0].surfaces[0].d]))
+        # if show_res:
+        #     plt.scatter(pos[:,1], pos[:,0])
+        #     plt.axis('scaled')
+        #     plt.title('Entry of first lens')
+        # plt.show()
         
         oss = [None for i in range(self.size_system)]
 
@@ -1046,13 +1108,13 @@ class HSSystem:
             if not ignore_invalid:
                 ray.o = ray.o[valid, :]
                 ray.d = ray.d[valid, :]
-        """ # Plot the position of the rays when they arrive on the second lens
-        pos = ray(torch.tensor([np.cos(-9.088)*self.F]))
-        if show_res:
-            plt.figure()
-            plt.scatter(pos[:,1], pos[:,0])
-            plt.axis('scaled')
-            plt.title('Entry of second lens') """
+        # # Plot the position of the rays when they arrive on the second lens
+        # pos = ray(torch.tensor([np.cos(-9.088)*self.F]))
+        # if show_res:
+        #     plt.figure()
+        #     plt.scatter(pos[:,1], pos[:,0])
+        #     plt.axis('scaled')
+        #     plt.title('Entry of second lens')
         
         # Trace rays to the sensor
         if show_rays:
@@ -1068,9 +1130,9 @@ class HSSystem:
             plt.close()
         return ps[...,:2]
     
-    def trace_through_system(self, nb_centric_circles, source_pos, max_angle, angles=[[0, 0]], wavelength = 520, ignore_invalid = False):
+    def trace_through_system(self, nb_centric_circles, source_pos, max_angle, angles=[[0, 0]], wavelength = 520, d = None, ignore_invalid = False):
         """
-        Traces the point spread function (PSF) from a point source through a series of lenses.
+        Traces rays through the lens system except the last optical element starting from a hexapolar source position.
 
         Args:
             nb_centric_circles (int): The number of hexapolar circles.
@@ -1082,7 +1144,7 @@ class HSSystem:
             ignore_invalid (bool): Flag indicating whether to ignore invalid rays (default: False)
 
         Returns:
-            ps (array): Array containing the x and y coordinates of the PSF
+            ray (array): Ray object containing the origin and direction of the rays after tracing through the lens system.
         """
         
         if self.system is None:
@@ -1091,8 +1153,9 @@ class HSSystem:
         # sample wavelengths in [nm]
         wavelength = torch.Tensor([wavelength]).float().to(self.device)
 
-        d = self.extract_hexapolar_dir(nb_centric_circles, source_pos, max_angle) 
-        ray = self.sample_rays_pos(wavelength, angles, x_pos = source_pos[0], y_pos = source_pos[1], z_pos = 0., d = d)
+        if d is None:
+            d = self.extract_hexapolar_dir(nb_centric_circles, source_pos, max_angle) 
+        ray = self.sample_rays_pos(wavelength, x_pos = source_pos[0], y_pos = source_pos[1], z_pos = 0., d = d, angles=angles)
 
         # Trace rays through each lens in the system
         for i, lens in enumerate(self.system[:-1]):
@@ -1145,7 +1208,7 @@ class HSSystem:
         for i, lens in enumerate(self.system[:-1]):
             ray, valid = lens.trace(ray)
         ps = self.system[-1].trace_to_sensor(ray)
-        #self.system[-1].spot_diagram(ps, xlims=[-nb_pixels*size_pixel/2*1.5, nb_pixels*size_pixel/2*1.5], ylims=[-nb_pixels*size_pixel/2*1.5, nb_pixels*size_pixel/2*1.5], savepath=self.save_dir + "spotdiagram.png", normalize=normalize, show=show)
+ 
         ps = ps.cpu().detach().numpy()
         return ps[...,:2]
     
@@ -1169,12 +1232,12 @@ class HSSystem:
         for w_id, w in enumerate(wavelengths):
             ps = self.plot_spot_diagram(w, nb_pixels, size_pixel, show=False, nb_pts_x=3, nb_pts_y=3)
 
-            """ps = ps[sq-1::sq,:]
-            new_ps = np.zeros((ps.shape[0]//sq, 2))
+            # ps = ps[sq-1::sq,:]
+            # new_ps = np.zeros((ps.shape[0]//sq, 2))
 
-            for i in range(sq):
-                new_ps[i*sq:(i+1)*sq,:] = np.flip(ps[nb_pixels*i:nb_pixels*i+sq,:], axis=0)
-            ps = new_ps """
+            # for i in range(sq):
+            #     new_ps[i*sq:(i+1)*sq,:] = np.flip(ps[nb_pixels*i:nb_pixels*i+sq,:], axis=0)
+            # ps = new_ps
 
             if opposite[0]:
                 ps[..., 0] = - ps[..., 0]
@@ -1205,6 +1268,8 @@ class HSSystem:
             elif w_id==2:
                 for i in range(3):
                     plt.plot(ps[i::3,0], ps[i::3,1], color='r', label = '_nolegend_')
+            
+        ps_return = []
         for w_id, w in enumerate(wavelengths):
             ps = self.plot_spot_diagram(w, nb_pixels, size_pixel, show=False, nb_pts_x=3, nb_pts_y=3)
 
@@ -1214,7 +1279,7 @@ class HSSystem:
                 plt.scatter(ps[...,0], ps[...,1], color='g')
             elif w_id==2:
                 plt.scatter(ps[...,0], ps[...,1], color='r')
-        
+            ps_return.append(ps)
         plt.xticks([-3, -2, -1, 0, 1, 2, 3])
         plt.yticks([-2, -1, 0, 1, 2])
         ax.tick_params(axis='both', which='major', width=5/2.5, length=20/2.5)
@@ -1223,8 +1288,9 @@ class HSSystem:
         if self.save_dir is not None:
             plt.savefig(self.save_dir + "spotdiagram.svg", format="svg", bbox_inches='tight', pad_inches = 0)
         plt.show()
+        return ps_return
     
-    def combined_plot_setup(self, with_sensor=False):
+    def plot_setup2D(self, with_sensor=False):
         """
         Plot the setup in a combined figure.
 
@@ -1263,7 +1329,7 @@ class HSSystem:
         ps, oss = self.trace_all(R=radius)
         return self.plot_setup_with_rays(oss)
 
-    def plot_setup_with_rays(self, oss, ax=None, fig=None, color='b-', linewidth=1.0, show=True):
+    def plot_setup_with_rays(self, oss, ax=None, fig=None, color='b-', linewidth=1.0, plot_setup=True, show=True):
         """
         Plots the setup with rays for a given list of lenses and optical systems.
 
@@ -1279,23 +1345,131 @@ class HSSystem:
             ax (matplotlib.axes.Axes): The matplotlib axes object.
             fig (matplotlib.figure.Figure): The matplotlib figure object.
         """
-        
         # If there is only one lens, plot the raytraces with the sensor
         if self.size_system==1:
-            ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, linewidth=linewidth, show=show, with_sensor=True, color=color)
+            ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, linewidth=linewidth, show=show, with_sensor=True, color=color, plot_setup = plot_setup)
             return ax, fig
         
         # Plot the raytraces for the first lens without the sensor
-        ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False)
+        ax, fig = self.system[0].plot_raytraces(oss[0], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False, plot_setup = plot_setup)
         
         # Plot the raytraces for the intermediate lenses without the sensor
         for i, lens in enumerate(self.system[1:-1]):
-            ax, fig = lens.plot_raytraces(oss[i+1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False)
+            ax, fig = lens.plot_raytraces(oss[i+1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=False, with_sensor=False, plot_setup = plot_setup)
         
         # Plot the raytraces for the last lens with the sensor
-        ax, fig = self.system[-1].plot_raytraces(oss[-1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=show, with_sensor=True)
+        ax, fig = self.system[-1].plot_raytraces(oss[-1], ax=ax, fig=fig, color=color, linewidth=linewidth, show=show, with_sensor=True, plot_setup = plot_setup)
         
         return ax, fig
+    
+    def plot_setup3D(self, with_sensor=False, show = True):
+        # Create a figure and axes for the plot
+        block = []
+        block_outline = []
+
+        thinlens_inds = []
+        
+        cnt = 0
+        # Plot the setup of each lens in 2D
+        for i, lens in enumerate(self.system[:-1]):
+            block = lens.plot_setup3D(block = block, with_sensor=with_sensor)
+            block_outline = lens.plot_frame3D(block = block_outline)
+
+            for s in lens.surfaces:
+                if isinstance(s, do.ThinLenslet):
+                    thinlens_inds.append(cnt+1)
+                    cnt += 2
+                    continue
+                elif isinstance(s, do.ThinLens):
+                    thinlens_inds.append(cnt)
+                cnt += 1
+        
+        # Plot the mask position
+        if hasattr(self, 'mask') and self.mask is not None:
+            n_mask = len(block)
+            block = self.mask_lens_object.plot_setup3D(block = block, with_sensor=False)
+            cnt += 2
+
+        # Plot the setup of the last lens with the sensor
+        block = self.system[-1].plot_setup3D(block = block, with_sensor=True)
+        block_outline = self.system[-1].plot_frame3D(block = block_outline)
+
+        for s in self.system[-1].surfaces:
+            if isinstance(s, do.ThinLenslet):
+                thinlens_inds.append(cnt+1)
+                cnt += 2
+                continue
+            elif isinstance(s, do.ThinLens):
+                thinlens_inds.append(cnt)
+            cnt += 1
+
+        blocks = pv.MultiBlock(block)
+
+        pl = pv.Plotter()
+
+        actor, mapper = pl.add_composite(blocks)
+        if hasattr(self, 'mask') and self.mask is not None:
+            mapper.block_attr[n_mask+2].color = 'r'  # Set the color of the mask to red
+        for t_i in thinlens_inds:
+            mapper.block_attr[t_i+1].color = 'purple'
+        mapper.block_attr[len(block)].color = 'k'  # Set the color of the detector to black
+        pl.add_composite(pv.MultiBlock(block_outline))
+
+        if show:
+            pl.show_axes()
+            #pl.enable_zoom_style()
+            print("Consult https://docs.pyvista.org/api/plotting/plotting for more information on keyboard shortcuts and mouse controls.")
+
+            pl.show(cpos = 'zx')
+
+        return pl
+
+    def compare_wavelength_trace_3D(self, nb_centric_circles, list_source_pos, max_angle, wavelengths, linewidth = 1.0, plotter=None, colors=None, show = True):
+        """
+        Compare the positions of rays traced from different source positions and wavelengths.
+        Parameters:
+            nb_centric_circles (int): Number of hexapolars.
+            list_source_pos (list): List of source positions.
+            max_angle (float): Maximum angle.
+            wavelength (list): Wavelengths of the rays.
+            plotter (pyvista.Plotter, optional): PyVista plotter object for plotting. Defaults to None. 
+            colors (list, optional): List of colors for plotting. Defaults to None.
+        Returns:
+            None
+        """
+
+        if colors is None:
+            colors = ['b-' for i in range(len(wavelengths))]
+
+        for ind, source_pos in enumerate(list_source_pos):
+            d = self.extract_hexapolar_dir(nb_centric_circles, source_pos, max_angle) 
+            for w_id, w in enumerate(wavelengths):
+                wavelength = torch.Tensor([w]).float().to(self.device)
+
+                ray = self.sample_rays_pos(wavelength, source_pos[0], source_pos[1], 0., d = d, angles = None)
+                
+                # Trace rays through each lens in the system
+                for i, lens in enumerate(self.system[:-1]):
+                    #print("\nLens: ", i, len(self.system))
+                    ray, valid, oss_mid = lens.trace_r(ray)
+                    lens.add_lines_to_plotter_from_oss(oss_mid, plotter, colors[w_id], linewidth)
+
+                    ray.o = ray.o[valid, :]
+                    ray.d = ray.d[valid, :]
+                
+                # Trace rays to the sensor
+                ps, oss_final = self.system[-1].trace_to_sensor_r(ray, ignore_invalid=True)
+                self.system[-1].add_lines_to_plotter_from_oss(oss_final, plotter, colors[w_id], linewidth)
+        
+        plotter.show_axes()
+        if show:
+            
+            #pl.enable_zoom_style()
+            print("Consult https://docs.pyvista.org/api/plotting/plotting for more information on keyboard shortcuts and mouse controls.")
+
+            plotter.show(cpos = 'zx')
+
+        return plotter
 
     def compare_spot_zemax(self, path_compare='./'):
         """
@@ -1309,7 +1483,7 @@ class HSSystem:
         """
         plt.rcParams['text.usetex'] = True
         plt.rcParams['font.family'] = 'serif'
-        #params = {'text.latex.preamble': r'\usepackage{siunitx} \usepackage{sfmath} \sisetup{detect-family = true} \usepackage{amsmath}'}
+        
         params = {'axes.labelsize': 90/2.5,'axes.titlesize':90/2.5, 'legend.fontsize': 90/2.5, 'xtick.labelsize': 70/2.5, 'ytick.labelsize': 70/2.5}
         matplotlib.rcParams.update(params)
         plt.rcParams.update(params)
@@ -1330,7 +1504,8 @@ class HSSystem:
 
             x_field = x_field.flatten()
             y_field = y_field.flatten()
-
+            
+            # Trace the rays through the system
             o = torch.stack((x_field, y_field, torch.zeros_like(x_field, device=self.device)), axis=-1).float()
             d = torch.stack((torch.zeros_like(x_field, device=self.device),
                              torch.zeros_like(x_field, device=self.device),
@@ -1423,22 +1598,24 @@ class HSSystem:
         Returns:
             torch.Tensor: The mapping cube from the scene to the detector.
         """
-        x_field = np.linspace(-1/2, 1/2, shape_scene[0])*shape_scene[0]*self.system[-1].pixel_size
-        y_field = np.linspace(-1/2, 1/2, shape_scene[1])*shape_scene[1]*self.system[-1].pixel_size
+        
+        for i, shape in enumerate(shape_scene):
+            if hasattr(shape, 'value'):
+                shape_scene[i] = shape.value
 
-        x, y = np.meshgrid(x_field, y_field)
-        x = torch.from_numpy(x).float().to(self.device)
-        y = torch.from_numpy(y).float().to(self.device)
+        x_field = torch.linspace(-1/2, 1/2, shape_scene[0], dtype=torch.float32,  device=self.device)*shape_scene[0]*self.system[-1].pixel_size
+        y_field = torch.linspace(-1/2, 1/2, shape_scene[1], dtype=torch.float32, device=self.device)*shape_scene[1]*self.system[-1].pixel_size
+        x, y = torch.meshgrid(x_field, y_field, indexing='xy')  # 'xy' to match numpy original meshgrid
 
-        o = torch.stack((x, y, torch.zeros_like(x, device=self.device)), axis=-1).float()
-        d = torch.stack((torch.zeros_like(x, device=self.device),
-                            torch.zeros_like(x, device=self.device),
-                            torch.ones_like(x, device=self.device)), axis=-1).float()
+        o = torch.stack((x, y, torch.zeros_like(x, dtype=torch.float32, device=self.device)), dim=-1).float()
+        d = torch.stack((torch.zeros_like(x, dtype=torch.float32, device=self.device),
+                            torch.zeros_like(x, dtype=torch.float32, device=self.device),
+                            torch.ones_like(x, dtype=torch.float32, device=self.device)), dim=-1).float()
                         
-        mapping_cube = torch.zeros((shape_scene[0], shape_scene[1], len(wavelengths), 2), device=self.device, dtype=torch.int)
+        mapping_cube = torch.zeros((shape_scene[0], shape_scene[1], len(wavelengths) if not hasattr(wavelengths, 'value') else len(wavelengths.value), 2), device=self.device, dtype=torch.int)
 
         film_size = torch.tensor(self.system[-1].film_size, device=self.device)
-        for w_id, w in enumerate(wavelengths):
+        for w_id, w in enumerate(wavelengths.value if hasattr(wavelengths, 'value') else wavelengths):
             ray = do.Ray(o, d, w, device=self.device)
             for i, lens in enumerate(self.system[:-1]):
                 ray, valid = lens.trace(ray)
@@ -1479,8 +1656,7 @@ class HSSystem:
 
         film_size = torch.tensor(self.system[-1].film_size, device=self.device)
         for w_id, w in enumerate(wavelengths):
-            #ps = positions + pos_dispersed[-1-w_id, :].unsqueeze(0)
-            ps = positions - pos_dispersed[w_id, :].unsqueeze(0)
+            ps = positions - pos_dispersed[w_id, :].unsqueeze(0) # Center the positions on the sensor
             ps = (ps[:, :2]/self.system[-1].pixel_size + film_size[None, :]//2).flip(1).reshape(shape_scene[0], shape_scene[1], 2) # Flip because x, y -> column, line
             ps = torch.stack((torch.clamp(ps[..., 0], min=0, max=self.system[-1].film_size[1]-1), torch.clamp(ps[..., 1], min=0, max=self.system[-1].film_size[0]-1)), dim=-1)
             mapping_cube[:, :, w_id, :] = ps.int()
@@ -1489,13 +1665,13 @@ class HSSystem:
         mapping_cube[:,:,:, 1] = film_size[0]-1 - mapping_cube[:,:,:, 1]
         return mapping_cube
 
-    def render(self, wavelengths=[450., 550., 650.], nb_rays=1, z0=0, texture=None, offsets=None, numerical_aperture = 0.05, plot=True):
+    def render(self, wavelengths=[450., 550., 650.], nb_rays=1, z0=None, texture=None, offsets=None, numerical_aperture = 0.05, plot=True):
         """
         Renders the texture with the optical system.
         Args:
             wavelengths (list, optional): List of wavelengths to propagate. Defaults to [450., 550., 650.].
             nb_rays (int, optional): Number of rays to propagate. Defaults to 1.
-            z0 (int, optional): Initial z-coordinate. Should be approximately equal to the distance from the sensor to the origin. Defaults to 0.
+            z0 (int, optional): Initial z-coordinate. Should be approximately equal to the distance from the sensor to the origin. Defaults to None.
             texture (ndarray, optional): Texture array. Defaults to None.
             offsets (ndarray, optional): Offsets array. Defaults to None.
             numerical_aperture (int, optional): Aperture reduction factor. Defaults to 1.
@@ -1505,7 +1681,7 @@ class HSSystem:
         return self.propagate(wavelengths = wavelengths, nb_rays = nb_rays, z0 = z0,
                   texture = texture, offsets = offsets, numerical_aperture=numerical_aperture, plot = plot)
     
-    def central_positions_wavelengths(self, wavelengths):
+    def central_positions_wavelengths(self, wavelengths, o = None):
         """
         Calculates where the central position of the scene is traced on the sensor for given wavelengths.
 
@@ -1517,12 +1693,17 @@ class HSSystem:
                           The tensor has shape (len(wavelengths), 2).
         """
         # Initialize a chief ray
-        o = torch.zeros((1,1,3), device=self.device)
-        d = torch.zeros((1,1,3), device=self.device)
+        if o is None:
+            o = torch.zeros((1,1,3), dtype=torch.float32, device=self.device)
+        else:
+            o = o.to(self.device)
+        d = torch.zeros((1,1,3), dtype=torch.float32, device=self.device)
         d[0,0,-1] = 1
 
-        results_pos = torch.empty((len(wavelengths), 2), device=self.device)
-        for w, wav in enumerate(wavelengths):
+        n = len(wavelengths) if not hasattr(wavelengths, 'value') else len(wavelengths.value)
+
+        results_pos = torch.empty((n, 2), device=self.device)
+        for w, wav in enumerate(wavelengths.value if hasattr(wavelengths, 'value') else wavelengths):
             ray = do.Ray(o, d, wav, device=self.device)
             for i, lens in enumerate(self.system[:-1]):
                 ray, valid = lens.trace(ray)
@@ -1551,7 +1732,7 @@ class HSSystem:
 
             wavelength = torch.Tensor([wavelength]).float().to(self.device)
 
-            ray = self.sample_rays_pos(wavelength, None, source_pos[0], source_pos[1], 0., d = d)
+            ray = self.sample_rays_pos(wavelength, source_pos[0], source_pos[1], 0., d = d, angles=None)
             oss = [None for i in range(self.size_system)]
             #print(ray)
 
@@ -1595,7 +1776,7 @@ class HSSystem:
             for w_id, w in enumerate(wavelengths[::-1]):
                 wavelength = torch.Tensor([w]).float().to(self.device)
 
-                ray = self.sample_rays_pos(wavelength, None, source_pos[0], source_pos[1], 0., d = d)
+                ray = self.sample_rays_pos(wavelength, source_pos[0], source_pos[1], 0., d = d, angles=None)
                 
                 oss = [0 for i in range(self.size_system)]
 
@@ -1611,7 +1792,7 @@ class HSSystem:
                 # Trace rays to the sensor
                 ps, oss_final = self.system[-1].trace_to_sensor_r(ray, ignore_invalid=True)
                 oss[-1] = oss_final
-                ax, fig = self.plot_setup_with_rays(oss, ax=ax, fig=fig, show=False, color=colors[w_id], linewidth=linewidth)
+                ax, fig = self.plot_setup_with_rays(oss, ax=ax, fig=fig, show=False, plot_setup = (ax is None), color=colors[w_id], linewidth=linewidth)
                 if self.save_dir is not None:
                     fig.savefig(os.path.join(self.save_dir, "setup_with_rays.svg"), format="svg")
             if ind ==0:
@@ -1652,26 +1833,85 @@ class HSSystem:
             None
         """
 
-        d = self.extract_hexapolar_dir(nb_centric_circles, source_pos, max_angle) 
+        if source_pos.ndim == 1:
+            source_pos = source_pos.reshape(1, 2)
+            fig, ax = plt.subplots()
+            fig_histo, ax_histo = plt.subplots()
+        else:
+            fig, ax = plt.subplots((len(source_pos)+3)//4, 4)
+            fig_histo, ax_histo = plt.subplots((len(source_pos)+3)//4, 4)
+            ps_total = torch.zeros((len(source_pos), 1 + 3*nb_centric_circles*(nb_centric_circles-1),2), device=self.device)
 
-        time_start = time.time()
-        ps = self.trace_psf_from_point_source(angles = None, x_pos = source_pos[0], y_pos = source_pos[1], z_pos = 0., wavelength = wavelength,
-                        show_rays = show_rays, d = d, ignore_invalid = False, show_res = show_res)
+        plt.close(fig)
+        plt.close(fig_histo)
 
-        print(f"Time elapsed: {time.time() - time_start:.3f} seconds")
-        ps_plot = ps.clone().detach().cpu()
-        plt.figure()
-        plt.scatter(ps_plot[..., 1], ps_plot[...,0], s=0.1)
-        plt.show()
         
-        fig, ax = plt.subplots()
-        hist = torch.histogramdd(ps_plot.flip(1), bins=11, density=False)
-        hist, edges = hist.hist.numpy(), hist.bin_edges
+        
+        for i, pos in enumerate(source_pos):
+            d = self.extract_hexapolar_dir(nb_centric_circles, pos, max_angle) 
 
-        ax.hist2d(ps_plot[...,1], ps_plot[...,0], bins=11)
-        ax.axis('equal')
+            time_start = time.time()
+            ps = self.trace_psf_from_point_source(angles = None, x_pos = pos[0], y_pos = pos[1], z_pos = 0., wavelength = wavelength,
+                            show_rays = show_rays, d = d, ignore_invalid = False, show_res = show_res)
+
+            print(f"Time elapsed: {time.time() - time_start:.3f} seconds")
+            ps_plot = ps.clone().detach().cpu()
+
+            if source_pos.shape[0] > 1:
+                ps_total[i, :ps_plot.shape[0], :] = ps_plot[..., :2]
+
+            plt.figure()
+            fm = plt.get_current_fig_manager()
+            fm.canvas.figure = fig
+            fig.canvas = fm.canvas
+            if source_pos.shape[0] == 1:
+                ax.scatter(ps_plot[..., 1], ps_plot[...,0], s=0.1)
+            else:
+                if source_pos.shape[0] > 4:
+                    ax[i//4, i%4].scatter(ps_plot[..., 1], ps_plot[...,0], s=0.1)
+                    ax[i//4, i%4].set_aspect('equal')
+                    ax[i//4, i%4].set_title(f"Source: {pos}mm")
+                    ax[i//4, i%4].set_xlabel('x [mm]')
+                    ax[i//4, i%4].set_ylabel('y [mm]')
+                else:
+                    ax[i].scatter(ps_plot[..., 1], ps_plot[...,0], s=0.1)
+                    ax[i].set_aspect('equal')
+                    ax[i].set_title(f"Source: {pos}mm")
+                    ax[i].set_xlabel('x [mm]')
+                    ax[i].set_ylabel('y [mm]')
+            
+            hist = torch.histogramdd(ps_plot.flip(1), bins=11, density=False)
+            hist, edges = hist.hist.numpy(), hist.bin_edges
+            
+            plt.figure()
+            fm_histo = plt.get_current_fig_manager()
+            fm_histo.canvas.figure = fig_histo
+            fig_histo.canvas = fm_histo.canvas
+            if source_pos.shape[0] == 1:
+                ax_histo.hist2d(ps_plot[...,1], ps_plot[...,0], bins=11)
+                ax_histo.axis('equal')
+            else:
+                if source_pos.shape[0] > 4:
+                    ax_histo[i//4, i%4].hist2d(ps_plot[...,1], ps_plot[...,0], bins=11)
+                    ax_histo[i//4, i%4].set_aspect('equal')
+                    ax_histo[i//4, i%4].set_title(f"Source: {pos}mm")
+                else:
+                    ax_histo[i].hist2d(ps_plot[...,1], ps_plot[...,0], bins=11)
+                    ax_histo[i].set_aspect('equal')
+                    ax_histo[i].set_title(f"Source: {pos}mm")
+
+            plt.close()
+
+        fig.show()
+        fig_histo.show()
+
+        # Block execution until all figures are closed
         plt.show()
-        return ps[...,:2]
+
+        if source_pos.shape[0] == 1:
+            return ps_plot[...,:2]
+        else:
+            return ps_total
     
     def compare_psf(self, nb_centric_circles, params, max_angle, pixel_size, kernel_size=11, show_rays = False, show_res = False):
         """

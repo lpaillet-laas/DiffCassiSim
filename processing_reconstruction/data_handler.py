@@ -9,10 +9,13 @@ from lightning import LightningDataModule
 
 
 class CubesDataset(Dataset):
-    def __init__(self, data_dir, crop_size = 512, augment=True):
+    def __init__(self, data_dir, crop_size = 512, augment=True, dgsmp_reduce = False):
         self.data_dir = data_dir
         self.augment_ = augment
         self.crop_size = crop_size
+        if dgsmp_reduce:
+            self.crop_size = 96
+        self.dgsmp_reduce = dgsmp_reduce
         self.data_file_names = sorted(os.listdir(self.data_dir))
 
     def __len__(self):
@@ -23,11 +26,23 @@ class CubesDataset(Dataset):
         cube = self.load_hyperspectral_data(idx) # H x W x lambda
 
         if self.augment_:
-            cube = self.augment(cube, self.crop_size) # lambda x H x W
+            if self.dgsmp_reduce:
+                cube, id_x, id_y = self.augment(cube, self.crop_size, return_indices=True) # lambda x H x W
+            else:
+                cube = self.augment(cube, self.crop_size) # lambda x H x W
         else:
-            cube = torch.from_numpy(np.transpose(cube, (2, 0, 1))).float()[:,:self.crop_size,:self.crop_size] # lambda x H x W
-        
-        return cube
+            if self.dgsmp_reduce:
+                id_x = np.random.randint(0, cube.shape[0] - self.crop_size)
+                id_y = np.random.randint(0, cube.shape[1] - self.crop_size)
+
+                cube = cube[id_x:id_x + self.crop_size, id_y:id_y + self.crop_size, :]
+                cube = torch.from_numpy(np.transpose(cube, (2, 0, 1))).float() # lambda x H x W
+            else:
+                cube = torch.from_numpy(np.transpose(cube, (2, 0, 1))).float()[:,:self.crop_size,:self.crop_size] # lambda x H x W
+        if self.dgsmp_reduce:
+            return cube, id_x, id_y
+        else:
+            return cube
 
     def load_hyperspectral_data(self, idx):
         file_path = os.path.join(self.data_dir, self.data_file_names[idx])
@@ -40,7 +55,7 @@ class CubesDataset(Dataset):
 
         return cube
     
-    def augment(self, img, crop_size = 512):
+    def augment(self, img, crop_size = 512, return_indices=False):
         h, w, _ = img.shape
 
         # Randomly crop
@@ -52,7 +67,9 @@ class CubesDataset(Dataset):
 
         # Randomly flip and rotate
         processed_data = arguement_1(processed_data)
-
+        
+        if return_indices:
+            return processed_data, x_index, y_index
         return processed_data
     
 class CubesDatasetTest(Dataset):
@@ -81,13 +98,13 @@ class CubesDatasetTest(Dataset):
 
     
 class CubesDataModule(LightningDataModule):
-    def __init__(self, data_dir_train, data_dir_test, batch_size, crop_size=512, num_workers=1, augment=True):
+    def __init__(self, data_dir_train, data_dir_test, batch_size, crop_size=512, num_workers=1, augment=True, dgsmp_reduce=False):
         super().__init__()
         self.data_dir_train = data_dir_train
         self.data_dir_test = data_dir_test
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.dataset = CubesDataset(self.data_dir_train, augment=augment, crop_size=crop_size)
+        self.dataset = CubesDataset(self.data_dir_train, augment=augment, crop_size=crop_size, dgsmp_reduce=dgsmp_reduce)
         self.test_dataset = CubesDatasetTest(self.data_dir_test, augment=augment, crop_size=crop_size)
 
     def setup(self, stage=None):
@@ -124,6 +141,8 @@ class CubesDataModule(LightningDataModule):
                             batch_size=self.batch_size,
                             num_workers=self.num_workers,
                             shuffle=False)
+    
+
 
 def arguement_1(x):
     """
