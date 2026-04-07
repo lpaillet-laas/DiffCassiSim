@@ -1,4 +1,4 @@
-# DiffCassiSim: Differentiable Ray-Traced CASSI Simulator and Distortions Analysis 
+# FROMAGE : Fast Ray-tracing-renderer for Optimization of Modern Architectures with Gradient Evaluation
 Code for paper _The Marginal Importance of Distortions and Alignment in CASSI systems_.
 
 ## Description
